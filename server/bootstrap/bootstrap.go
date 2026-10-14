@@ -59,11 +59,20 @@ func OpenDatabase(cfg *config.Config) (*gorm.DB, error) {
 		return db, nil
 	}
 
-	directory := filepath.Dir(filepath.Clean(cfg.Database.SQLitePath))
+	sqlitePath := cfg.Database.SQLitePath
+	if os.Getenv("VERCEL") == "1" && !filepath.IsAbs(sqlitePath) {
+		// Serverless functions have a read-only working directory; the
+		// only writable location is /tmp. Without DATABASE_URL the app
+		// still boots on an ephemeral SQLite file there (data does not
+		// survive cold starts) so the deployment stays usable for
+		// evaluation until a Postgres DATABASE_URL is configured.
+		sqlitePath = filepath.Join(os.TempDir(), "upstream-x", filepath.Base(sqlitePath))
+	}
+	directory := filepath.Dir(filepath.Clean(sqlitePath))
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("create sqlite directory %s: %w", directory, err)
 	}
-	db, err := gorm.Open(sqlite.Open(cfg.Database.SQLitePath), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(sqlitePath), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite database: %w", err)
 	}
