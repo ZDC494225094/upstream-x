@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"strings"
 
-	"upstream-x/internal/config"
-	"upstream-x/internal/mailer"
-	"upstream-x/internal/scheduler"
-	"upstream-x/internal/service"
-	"upstream-x/internal/upstream"
+	"upstream-x/server/config"
+	"upstream-x/server/mailer"
+	"upstream-x/server/scheduler"
+	"upstream-x/server/service"
+	"upstream-x/server/upstream"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"

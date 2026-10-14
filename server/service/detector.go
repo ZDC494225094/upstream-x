@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"upstream-x/internal/mailer"
-	"upstream-x/internal/models"
-	"upstream-x/internal/repository"
-	"upstream-x/internal/upstream"
-	"upstream-x/internal/utils"
+	"upstream-x/server/mailer"
+	"upstream-x/server/models"
+	"upstream-x/server/repository"
+	"upstream-x/server/upstream"
+	"upstream-x/server/utils"
 )
 
 type DetectorService struct {

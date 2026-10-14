@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"upstream-x/internal/config"
-	"upstream-x/internal/repository"
+	"upstream-x/server/config"
+	"upstream-x/server/repository"
 )
 
 const (

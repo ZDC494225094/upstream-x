@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"upstream-x/internal/service"
+	"upstream-x/server/service"
 
 	"github.com/robfig/cron/v3"
 )

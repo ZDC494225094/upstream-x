@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"upstream-x/internal/models"
+	"upstream-x/server/models"
 )
 
 func TestFetchSub2APIUsesModelPlazaCatalogWhenAvailable(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"upstream-x/internal/models"
+	"upstream-x/server/models"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

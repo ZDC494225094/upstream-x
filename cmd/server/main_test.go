@@ -1,9 +1,13 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"upstream-x/server/bootstrap"
+	"upstream-x/server/config"
 )
 
 func TestConfigureTimeZone(t *testing.T) {
@@ -26,9 +30,18 @@ func TestConfigureTimeZoneRejectsUnknownZone(t *testing.T) {
 	}
 }
 
-func TestEnsureSQLiteDirectory(t *testing.T) {
+func TestOpenDatabaseCreatesSQLiteDirectory(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "app.db")
-	if err := ensureSQLiteDirectory(databasePath); err != nil {
-		t.Fatalf("ensure sqlite directory: %v", err)
+	cfg := &config.Config{}
+	cfg.Database.SQLitePath = databasePath
+	db, err := bootstrap.OpenDatabase(cfg)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	if _, err := os.Stat(filepath.Dir(databasePath)); err != nil {
+		t.Fatalf("expected sqlite directory to exist: %v", err)
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		_ = sqlDB.Close()
 	}
 }

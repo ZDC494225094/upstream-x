@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"upstream-x/internal/config"
-	"upstream-x/internal/models"
-	"upstream-x/internal/repository"
+	"upstream-x/server/config"
+	"upstream-x/server/models"
+	"upstream-x/server/repository"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

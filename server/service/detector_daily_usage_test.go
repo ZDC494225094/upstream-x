@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"upstream-x/internal/models"
-	"upstream-x/internal/repository"
-	"upstream-x/internal/utils"
+	"upstream-x/server/models"
+	"upstream-x/server/repository"
+	"upstream-x/server/utils"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

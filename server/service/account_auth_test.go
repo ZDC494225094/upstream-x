@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"upstream-x/internal/models"
+	"upstream-x/server/models"
 )
 
 func TestValidateAccountPayloadRejectsRemovedBrowserAuthModes(t *testing.T) {

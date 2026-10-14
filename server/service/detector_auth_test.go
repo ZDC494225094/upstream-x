@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"upstream-x/internal/models"
-	"upstream-x/internal/upstream"
+	"upstream-x/server/models"
+	"upstream-x/server/upstream"
 )
 
 func TestSub2APIPasswordModeDoesNotReloginAfterNonAuthFailure(t *testing.T) {

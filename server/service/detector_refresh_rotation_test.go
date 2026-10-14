@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"upstream-x/internal/models"
-	"upstream-x/internal/upstream"
+	"upstream-x/server/models"
+	"upstream-x/server/upstream"
 )
 
 // Simulates the current Sub2API protocol: refresh tokens are single-use and

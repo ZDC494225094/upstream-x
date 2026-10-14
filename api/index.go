@@ -19,8 +19,8 @@ import (
 	"time"
 	_ "time/tzdata"
 
-	"upstream-x/internal/bootstrap"
-	"upstream-x/internal/config"
+	"upstream-x/server/bootstrap"
+	"upstream-x/server/config"
 )
 
 var (

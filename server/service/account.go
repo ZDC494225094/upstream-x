@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"upstream-x/internal/crypto"
-	"upstream-x/internal/models"
-	"upstream-x/internal/repository"
-	"upstream-x/internal/upstream"
+	"upstream-x/server/crypto"
+	"upstream-x/server/models"
+	"upstream-x/server/repository"
+	"upstream-x/server/upstream"
 
 	"gorm.io/gorm"
 )

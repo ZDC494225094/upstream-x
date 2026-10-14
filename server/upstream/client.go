@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"upstream-x/internal/models"
+	"upstream-x/server/models"
 )
 
 type AccountCredentials struct {

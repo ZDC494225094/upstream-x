@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"upstream-x/internal/models"
-	"upstream-x/internal/utils"
+	"upstream-x/server/models"
+	"upstream-x/server/utils"
 )
 
 func TestBuildScreenGroupSummariesAggregatesObservedUsage(t *testing.T) {

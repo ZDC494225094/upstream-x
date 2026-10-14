@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"upstream-x/internal/models"
+	"upstream-x/server/models"
 )
 
 func TestFetchSub2APIEnrichesKeyUsage(t *testing.T) {

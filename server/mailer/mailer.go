@@ -6,7 +6,7 @@ import (
 	"net/smtp"
 	"strings"
 
-	"upstream-x/internal/config"
+	"upstream-x/server/config"
 )
 
 type Mailer struct {

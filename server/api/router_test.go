@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"upstream-x/internal/config"
+	"upstream-x/server/config"
 
 	"github.com/gin-gonic/gin"
 )
