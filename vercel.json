@@ -1,1 +1,25 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","buildCommand":"cd frontend && npm run build","crons":[{"path":"/api/internal/check-all","schedule":"*/10 * * * *"}],"functions":{"api/index.go":{"maxDuration":300}},"installCommand":"cd frontend && npm install","outputDirectory":"frontend/dist","rewrites":[{"destination":"/api/index.go","source":"/api/:path*"},{"destination":"/api/index.go","source":"/healthz"},{"destination":"/index.html","source":"/((?!assets/|favicon.png|newapi.svg|sub2api.logo.png).*)"}]}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd frontend && npm run build",
+  "functions": {
+    "api/index.go": {
+      "maxDuration": 300
+    }
+  },
+  "installCommand": "cd frontend && npm install",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "destination": "/api/index.go",
+      "source": "/api/:path*"
+    },
+    {
+      "destination": "/api/index.go",
+      "source": "/healthz"
+    },
+    {
+      "destination": "/index.html",
+      "source": "/((?!assets/|favicon.png|newapi.svg|sub2api.logo.png).*)"
+    }
+  ]
+}
