@@ -49,6 +49,7 @@ type UpstreamAccount struct {
 	BaseURL                  string          `gorm:"size:255;not null" json:"base_url"`
 	Sub2APIAuthMode          Sub2APIAuthMode `gorm:"size:30;not null;default:refresh_token" json:"sub2api_auth_mode"`
 	Sub2APILoginBodyTemplate string          `gorm:"type:text" json:"sub2api_login_body_template"`
+	CustomUserAgent          string          `gorm:"size:500" json:"custom_user_agent"`
 	NewAPIAuthMode           NewAPIAuthMode  `gorm:"size:30;not null;default:manual" json:"newapi_auth_mode"`
 	BearerTokenEncrypted     string          `gorm:"type:text;not null" json:"-"`
 	RefreshTokenEncrypted    string          `gorm:"type:text" json:"-"`

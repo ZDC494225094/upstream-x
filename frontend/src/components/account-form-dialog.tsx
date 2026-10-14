@@ -23,6 +23,7 @@ type FormState = {
   base_url: string;
   sub2api_auth_mode: Sub2APIAuthMode;
   sub2api_login_body_template: string;
+  custom_user_agent: string;
   newapi_auth_mode: NewAPIAuthMode;
   bearer_token: string;
   refresh_token: string;
@@ -40,6 +41,7 @@ const defaultState: FormState = {
   base_url: "",
   sub2api_auth_mode: "refresh_token",
   sub2api_login_body_template: "",
+  custom_user_agent: "",
   newapi_auth_mode: "manual",
   bearer_token: "",
   refresh_token: "",
@@ -87,6 +89,7 @@ export function AccountFormDialog({ open, onOpenChange, initial, onSubmit, onVal
       base_url: initial.base_url,
       sub2api_auth_mode: initial.sub2api_auth_mode ?? "refresh_token",
       sub2api_login_body_template: initial.sub2api_login_body_template ?? "",
+      custom_user_agent: initial.custom_user_agent ?? "",
       newapi_auth_mode: initial.newapi_auth_mode ?? "manual",
       bearer_token: "",
       refresh_token: "",
@@ -287,6 +290,34 @@ export function AccountFormDialog({ open, onOpenChange, initial, onSubmit, onVal
                   <FieldNote>
                     某些站点改过登录接口时可在这里填写 JSON 请求体，推荐使用 <code>{"{{email}}"}</code> 和
                     <code>{"{{password}}"}</code>。留空则默认使用邮箱和密码字段。
+                  </FieldNote>
+                </div>
+              )}
+              {isSub2API && (
+                <div className="space-y-2">
+                  <Label htmlFor="account-custom-user-agent">自定义 User-Agent（选填）</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="account-custom-user-agent"
+                      className="font-mono text-[12px]"
+                      placeholder="留空使用默认 Upstream-X/1.1"
+                      value={form.custom_user_agent}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                        setForm((s) => ({ ...s, custom_user_agent: e.target.value }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => setForm((s) => ({ ...s, custom_user_agent: navigator.userAgent }))}
+                    >
+                      使用当前浏览器 UA
+                    </Button>
+                  </div>
+                  <FieldNote>
+                    上游开启会话 IP/UA 绑定时，导入浏览器签发的 refresh token 需要让本服务的 UA 与浏览器完全一致（IP
+                    侧再配合【系统设置 → 上游代理】对齐出口）。如果你正是在当前浏览器里登录的上游，点右侧按钮即可直接填入；用其它浏览器/设备登录的，请从那台设备上复制 UA。
                   </FieldNote>
                 </div>
               )}

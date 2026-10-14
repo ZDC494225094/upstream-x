@@ -24,6 +24,7 @@ type AccountCredentials struct {
 	Sub2APIEmail             string
 	Sub2APIPassword          string
 	Sub2APILoginBodyTemplate string
+	UserAgent                string
 	BearerToken              string
 	RefreshToken             string
 	NewAPIUser               string
@@ -238,6 +239,19 @@ func FetchEgressIP(ctx context.Context, proxyRaw string) (string, error) {
 // (session_binding); a stable UA keeps refresh/login/data calls consistent.
 const userAgent = "Upstream-X/1.1"
 
+// effectiveUserAgent returns the per-account User-Agent override when
+// set, else the stable default. A browser-issued session may be bound
+// to the browser's IP+UA fingerprint; when the operator imports such a
+// token, sending the browser's exact UA (together with a proxy that
+// shares the browser's egress IP) keeps refreshes consistent with the
+// original session.
+func effectiveUserAgent(creds AccountCredentials) string {
+	if ua := strings.TrimSpace(creds.UserAgent); ua != "" {
+		return ua
+	}
+	return userAgent
+}
+
 // upstreamErrorReason extracts the machine-readable reason code from a
 // Sub2API-style error body: {"code":401,"message":"...","reason":"..."}.
 func upstreamErrorReason(raw []byte) string {
@@ -311,7 +325,7 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", effectiveUserAgent(creds))
 
 	resp, err := c.do(req)
 	if err != nil {
@@ -387,7 +401,7 @@ func (c *Client) LoginSub2API(ctx context.Context, creds AccountCredentials) (*L
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", effectiveUserAgent(creds))
 
 	resp, err := c.do(req)
 	if err != nil {
@@ -1016,7 +1030,7 @@ func (c *Client) getJSON(ctx context.Context, creds AccountCredentials, path str
 
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(creds.BearerToken))
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", effectiveUserAgent(creds))
 	if creds.Type == models.UpstreamTypeNewAPI && creds.NewAPIUser != "" {
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}
@@ -1057,7 +1071,7 @@ func (c *Client) postJSON(ctx context.Context, creds AccountCredentials, path st
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(creds.BearerToken))
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", effectiveUserAgent(creds))
 	if creds.Type == models.UpstreamTypeNewAPI && creds.NewAPIUser != "" {
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}

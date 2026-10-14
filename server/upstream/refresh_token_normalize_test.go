@@ -54,3 +54,31 @@ func TestRefreshSub2APITokenAcceptsQuotedToken(t *testing.T) {
 		t.Fatalf("unexpected result: %+v", result)
 	}
 }
+
+func TestRefreshUsesCustomUserAgent(t *testing.T) {
+	var seenUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenUA = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"access_token":"a","refresh_token":"rt_next"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	browserUA := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+	if _, err := client.RefreshSub2APIToken(context.Background(), AccountCredentials{
+		BaseURL: server.URL, Type: models.UpstreamTypeSub2API, RefreshToken: "rt_x", UserAgent: browserUA,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if seenUA != browserUA {
+		t.Fatalf("custom UA not sent: got %q", seenUA)
+	}
+	if _, err := client.RefreshSub2APIToken(context.Background(), AccountCredentials{
+		BaseURL: server.URL, Type: models.UpstreamTypeSub2API, RefreshToken: "rt_x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if seenUA != userAgent {
+		t.Fatalf("default UA changed: got %q", seenUA)
+	}
+}

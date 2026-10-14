@@ -962,6 +962,7 @@ func (s *DetectorService) credentialsFor(account *models.UpstreamAccount) (upstr
 		Sub2APIEmail:             sub2apiEmail,
 		Sub2APIPassword:          sub2apiPassword,
 		Sub2APILoginBodyTemplate: account.Sub2APILoginBodyTemplate,
+		UserAgent:                account.CustomUserAgent,
 		BearerToken:              bearer,
 		RefreshToken:             refreshToken,
 		NewAPIUser:               newAPIUser,

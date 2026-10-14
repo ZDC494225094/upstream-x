@@ -20,6 +20,7 @@ type AccountPayload struct {
 	BaseURL                  string                 `json:"base_url"`
 	Sub2APIAuthMode          models.Sub2APIAuthMode `json:"sub2api_auth_mode"`
 	Sub2APILoginBodyTemplate string                 `json:"sub2api_login_body_template"`
+	CustomUserAgent          string                 `json:"custom_user_agent"`
 	NewAPIAuthMode           models.NewAPIAuthMode  `json:"newapi_auth_mode"`
 	BearerToken              string                 `json:"bearer_token"`
 	RefreshToken             string                 `json:"refresh_token"`
@@ -38,6 +39,7 @@ type AccountTransferItem struct {
 	BaseURL                  string                 `json:"base_url"`
 	Sub2APIAuthMode          models.Sub2APIAuthMode `json:"sub2api_auth_mode,omitempty"`
 	Sub2APILoginBodyTemplate string                 `json:"sub2api_login_body_template,omitempty"`
+	CustomUserAgent          string                 `json:"custom_user_agent,omitempty"`
 	NewAPIAuthMode           models.NewAPIAuthMode  `json:"newapi_auth_mode,omitempty"`
 	BearerToken              string                 `json:"bearer_token"`
 	RefreshToken             string                 `json:"refresh_token,omitempty"`
@@ -78,6 +80,7 @@ type AccountView struct {
 	BaseURL                  string                 `json:"base_url"`
 	Sub2APIAuthMode          models.Sub2APIAuthMode `json:"sub2api_auth_mode,omitempty"`
 	Sub2APILoginBodyTemplate string                 `json:"sub2api_login_body_template,omitempty"`
+	CustomUserAgent          string                 `json:"custom_user_agent,omitempty"`
 	NewAPIAuthMode           models.NewAPIAuthMode  `json:"newapi_auth_mode,omitempty"`
 	Sub2APIEmail             string                 `json:"sub2api_email,omitempty"`
 	NewAPIUser               string                 `json:"new_api_user,omitempty"`
@@ -152,6 +155,7 @@ func (s *AccountService) ToView(account *models.UpstreamAccount) (*AccountView, 
 		BaseURL:                  account.BaseURL,
 		Sub2APIAuthMode:          normalizeSub2APIAuthMode(account.Type, account.Sub2APIAuthMode),
 		Sub2APILoginBodyTemplate: account.Sub2APILoginBodyTemplate,
+		CustomUserAgent:          account.CustomUserAgent,
 		NewAPIAuthMode:           normalizeNewAPIAuthMode(account.Type, account.NewAPIAuthMode),
 		Sub2APIEmail:             sub2apiEmail,
 		NewAPIUser:               newAPIUser,
@@ -221,6 +225,7 @@ func (s *AccountService) BuildTransient(payload AccountPayload) (*models.Upstrea
 		BaseURL:                  strings.TrimRight(strings.TrimSpace(payload.BaseURL), "/"),
 		Sub2APIAuthMode:          normalizeSub2APIAuthMode(payload.Type, payload.Sub2APIAuthMode),
 		Sub2APILoginBodyTemplate: strings.TrimSpace(payload.Sub2APILoginBodyTemplate),
+		CustomUserAgent:          strings.TrimSpace(payload.CustomUserAgent),
 		NewAPIAuthMode:           normalizeNewAPIAuthMode(payload.Type, payload.NewAPIAuthMode),
 		BearerTokenEncrypted:     bearer,
 		RefreshTokenEncrypted:    refreshToken,
@@ -252,6 +257,7 @@ func (s *AccountService) Update(id uint, payload AccountPayload) (*models.Upstre
 	account.BaseURL = strings.TrimRight(strings.TrimSpace(merged.BaseURL), "/")
 	account.Sub2APIAuthMode = normalizeSub2APIAuthMode(merged.Type, merged.Sub2APIAuthMode)
 	account.Sub2APILoginBodyTemplate = strings.TrimSpace(merged.Sub2APILoginBodyTemplate)
+	account.CustomUserAgent = strings.TrimSpace(merged.CustomUserAgent)
 	account.NewAPIAuthMode = normalizeNewAPIAuthMode(merged.Type, merged.NewAPIAuthMode)
 	account.LowBalanceThresholdUSD = merged.LowBalanceThresholdUSD
 	account.Enabled = merged.Enabled
@@ -321,6 +327,7 @@ func (s *AccountService) BuildValidationPayload(account *models.UpstreamAccount,
 		BaseURL:                  payload.BaseURL,
 		Sub2APIAuthMode:          payload.Sub2APIAuthMode,
 		Sub2APILoginBodyTemplate: payload.Sub2APILoginBodyTemplate,
+		CustomUserAgent:          payload.CustomUserAgent,
 		NewAPIAuthMode:           payload.NewAPIAuthMode,
 		BearerToken:              payload.BearerToken,
 		RefreshToken:             payload.RefreshToken,
@@ -399,6 +406,7 @@ func (s *AccountService) ExportBundle() (*AccountTransferBundle, error) {
 			BaseURL:                  account.BaseURL,
 			Sub2APIAuthMode:          account.Sub2APIAuthMode,
 			Sub2APILoginBodyTemplate: account.Sub2APILoginBodyTemplate,
+		CustomUserAgent:          account.CustomUserAgent,
 			NewAPIAuthMode:           normalizeNewAPIAuthMode(account.Type, account.NewAPIAuthMode),
 			BearerToken:              bearerToken,
 			RefreshToken:             refreshToken,
@@ -434,6 +442,7 @@ func (s *AccountService) ImportBundle(bundle AccountTransferBundle) (*AccountImp
 			BaseURL:                  item.BaseURL,
 			Sub2APIAuthMode:          item.Sub2APIAuthMode,
 			Sub2APILoginBodyTemplate: item.Sub2APILoginBodyTemplate,
+			CustomUserAgent:          item.CustomUserAgent,
 			NewAPIAuthMode:           item.NewAPIAuthMode,
 			BearerToken:              item.BearerToken,
 			RefreshToken:             item.RefreshToken,

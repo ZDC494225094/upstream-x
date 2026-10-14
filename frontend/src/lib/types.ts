@@ -12,6 +12,7 @@ export interface Account {
   base_url: string;
   sub2api_auth_mode?: Sub2APIAuthMode;
   sub2api_login_body_template?: string;
+  custom_user_agent?: string;
   newapi_auth_mode?: NewAPIAuthMode;
   sub2api_email?: string;
   new_api_user?: string;
@@ -31,6 +32,7 @@ export interface AccountTransferItem {
   base_url: string;
   sub2api_auth_mode?: Sub2APIAuthMode;
   sub2api_login_body_template?: string;
+  custom_user_agent?: string;
   newapi_auth_mode?: NewAPIAuthMode;
   bearer_token: string;
   refresh_token?: string;
