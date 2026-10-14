@@ -80,14 +80,15 @@ func TestSub2APIRefreshRotationReturnsNewCredentials(t *testing.T) {
 		t.Fatalf("used credentials = %+v, want rotated rt_new/fresh-access", used)
 	}
 
-	// The burned token must now fail with an actionable message.
+	// The burned token must now fail, with the upstream error returned
+	// verbatim (raw body, no reinterpretation).
 	stale := creds
 	_, _, err = detector.fetchSnapshot(context.Background(), account, stale)
 	if err == nil || !strings.Contains(err.Error(), "REFRESH_TOKEN_INVALID") {
-		t.Fatalf("stale fetch error = %v, want REFRESH_TOKEN_INVALID guidance", err)
+		t.Fatalf("stale fetch error = %v, want the raw REFRESH_TOKEN_INVALID body", err)
 	}
-	if !strings.Contains(err.Error(), "一次性轮换") {
-		t.Fatalf("stale fetch error should explain token rotation, got: %v", err)
+	if !strings.Contains(err.Error(), `"message":"invalid refresh token"`) {
+		t.Fatalf("stale fetch error should carry the upstream body verbatim, got: %v", err)
 	}
 }
 

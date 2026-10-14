@@ -252,35 +252,11 @@ func effectiveUserAgent(creds AccountCredentials) string {
 	return userAgent
 }
 
-// upstreamErrorReason extracts the machine-readable reason code from a
-// Sub2API-style error body: {"code":401,"message":"...","reason":"..."}.
-func upstreamErrorReason(raw []byte) string {
-	var body struct {
-		Reason string `json:"reason"`
-	}
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(body.Reason)
-}
-
-// describeUpstreamError turns an upstream non-2xx response into an actionable
-// message. Since the Sub2API protocol change, refresh tokens are single-use
-// rotating tokens: any validation/check consumes the presented token and the
-// server only honours the newest one it issued.
+// describeUpstreamError returns an upstream non-2xx response verbatim:
+// status line plus the raw body, no reinterpretation. The operator
+// reads the upstream's own error (code/message/reason) directly.
 func describeUpstreamError(action string, status int, raw []byte) error {
-	reason := upstreamErrorReason(raw)
-	switch reason {
-	case "REFRESH_TOKEN_INVALID":
-		return fmt.Errorf("upstream %s status %d: refresh token 已失效（REFRESH_TOKEN_INVALID）。新版 Sub2API 的 refresh token 是一次性轮换的：每次校验/检测都会消耗旧 token 并换发新 token，常见原因：①该 token 已被校验、检测或浏览器会话使用过；②填入的不是以 rt_ 开头的 refresh token（不要填 access token 或 API Key）；③上游账号改过密码导致整个 token 家族被撤销；④token 复制不完整或带了空格/换行。请在上游重新登录获取最新 refresh token 后立即填入，中途不要再用该会话做其他操作；更推荐改用账号密码模式（每次自动重新登录，不受轮换影响）: %s", action, status, string(raw))
-	case "REFRESH_TOKEN_EXPIRED":
-		return fmt.Errorf("upstream %s status %d: refresh token 已过期（REFRESH_TOKEN_EXPIRED），请重新登录上游获取新 token，或改用账号密码模式: %s", action, status, string(raw))
-	case "REFRESH_TOKEN_REUSED":
-		return fmt.Errorf("upstream %s status %d: refresh token 被重复使用（REFRESH_TOKEN_REUSED），上游已撤销整个 token 家族，请重新登录上游获取全新 token: %s", action, status, string(raw))
-	case "SESSION_BINDING_MISMATCH":
-		return fmt.Errorf("upstream %s status %d: 上游开启了会话 IP/UA 绑定（SESSION_BINDING_MISMATCH），该 token 不是在本服务所在服务器/IP 下登录生成的，整个会话家族已被撤销。请改用账号密码模式让本服务自行登录（并可在【系统设置 → 上游代理】配置与浏览器登录同出口的 SOCKS5 代理，让登录与检测走同一 IP），或在上游关闭会话绑定: %s", action, status, string(raw))
-	}
-	return fmt.Errorf("upstream %s status %d: %s", action, status, string(raw))
+	return fmt.Errorf("upstream %s status %d: %s", action, status, strings.TrimSpace(string(raw)))
 }
 
 // NormalizeRefreshToken cleans a user-pasted refresh token: trims
