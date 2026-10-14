@@ -12,6 +12,7 @@ import (
 
 	"upstream-x/server/config"
 	"upstream-x/server/repository"
+	"upstream-x/server/upstream"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	smtpRecipientsKey  = "smtp.recipients"
 	smtpUseTLSKey      = "smtp.use_tls"
 	screenLayoutKey    = "screen.layout"
+	proxyURLKey        = "network.proxy_url"
 	customMenuLinksKey = "ui.custom_menu_links"
 )
 
@@ -57,6 +59,7 @@ type SettingsSnapshot struct {
 	LogRetentionDays        int                 `json:"log_retention_days"`
 	SMTP                    SMTPSettingsPayload `json:"smtp"`
 	CustomMenuLinks         []CustomMenuLink    `json:"custom_menu_links"`
+	ProxyURL                string              `json:"proxy_url"`
 }
 
 type CustomMenuLink struct {
@@ -100,6 +103,27 @@ func (s *SettingsService) GetScheduleInterval() (int, error) {
 
 func (s *SettingsService) UpdateScheduleInterval(minutes int) error {
 	return s.repo.SetScheduleInterval(minutes)
+}
+
+// GetProxyURL returns the configured outbound proxy for upstream
+// requests (empty = direct connection).
+func (s *SettingsService) GetProxyURL() (string, error) {
+	value, err := s.repo.GetSystemSetting(proxyURLKey)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(value), nil
+}
+
+// UpdateProxyURL validates and stores the outbound proxy URL.
+func (s *SettingsService) UpdateProxyURL(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	if err := upstream.ValidateProxyURL(trimmed); err != nil {
+		return err
+	}
+	return s.repo.SetSystemSettings(map[string]string{
+		proxyURLKey: trimmed,
+	})
 }
 
 func (s *SettingsService) GetLogRetentionDays() (int, error) {
@@ -241,11 +265,16 @@ func (s *SettingsService) Snapshot() (*SettingsSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
+	proxyURL, err := s.GetProxyURL()
+	if err != nil {
+		return nil, err
+	}
 	return &SettingsSnapshot{
 		ScheduleIntervalMinutes: interval,
 		LogRetentionDays:        logRetentionDays,
 		SMTP:                    smtp,
 		CustomMenuLinks:         customMenuLinks,
+		ProxyURL:                proxyURL,
 	}, nil
 }
 
@@ -391,6 +420,9 @@ func (s *SettingsService) ImportBundle(bundle SettingsTransferBundle) (*Settings
 	if _, err := s.UpdateCustomMenuLinks(CustomMenuLinksSettings{
 		Items: bundle.Settings.CustomMenuLinks,
 	}); err != nil {
+		return nil, err
+	}
+	if err := s.UpdateProxyURL(bundle.Settings.ProxyURL); err != nil {
 		return nil, err
 	}
 

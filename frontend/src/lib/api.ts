@@ -174,4 +174,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  updateProxy: (payload: { proxy_url: string }) =>
+    request<{ success: boolean; proxy_url: string }>("/api/settings/proxy", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  testProxy: (payload: { proxy_url: string }) =>
+    request<{ ip: string; proxy_used: boolean }>("/api/settings/proxy/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

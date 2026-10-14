@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"upstream-x/server/models"
@@ -87,13 +89,148 @@ type LoginResult struct {
 }
 
 type Client struct {
-	httpClient *http.Client
+	proxyProvider ProxyProvider
+
+	mu        sync.Mutex
+	proxyURL  string
+	transport *http.Transport
 }
 
+// ProxyProvider resolves the currently configured outbound proxy URL
+// (empty string means direct connection). It is consulted on every
+// request so a proxy saved in the admin settings takes effect
+// immediately, without restarting the process.
+type ProxyProvider func() (string, error)
+
 func NewClient() *Client {
-	return &Client{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+	return &Client{}
+}
+
+// NewClientWithProxyProvider returns a Client whose upstream requests
+// go through the proxy supplied by provider (e.g. a SOCKS5 proxy that
+// shares the egress IP of the machine where the operator logs in to
+// upstreams in a browser — relevant when an upstream binds its session
+// to the login IP/UA or validates captcha tokens against the request
+// IP).
+func NewClientWithProxyProvider(provider ProxyProvider) *Client {
+	return &Client{proxyProvider: provider}
+}
+
+const clientTimeout = 30 * time.Second
+
+// ValidateProxyURL checks a user-supplied proxy URL. Empty means "no
+// proxy". Schemes: socks5, socks5h, http, https (credentials in the
+// URL userinfo are supported).
+func ValidateProxyURL(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
 	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return fmt.Errorf("代理地址格式不正确: %w", err)
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "socks5", "socks5h", "http", "https":
+	default:
+		return fmt.Errorf("代理协议仅支持 socks5 / socks5h / http / https，当前为 %q", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("代理地址缺少主机和端口，如 socks5://127.0.0.1:1080")
+	}
+	return nil
+}
+
+// httpClientFor returns an http.Client routed through the currently
+// configured proxy. The transport is rebuilt only when the configured
+// proxy URL changes.
+func (c *Client) httpClientFor() (*http.Client, error) {
+	proxyRaw := ""
+	if c.proxyProvider != nil {
+		value, err := c.proxyProvider()
+		if err != nil {
+			return nil, fmt.Errorf("read proxy setting: %w", err)
+		}
+		proxyRaw = strings.TrimSpace(value)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.transport != nil && c.proxyURL == proxyRaw {
+		return &http.Client{Timeout: clientTimeout, Transport: c.transport}, nil
+	}
+
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          32,
+		MaxIdleConnsPerHost:   8,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	if proxyRaw != "" {
+		if err := ValidateProxyURL(proxyRaw); err != nil {
+			return nil, err
+		}
+		parsed, err := url.Parse(proxyRaw)
+		if err != nil {
+			return nil, fmt.Errorf("代理地址格式不正确: %w", err)
+		}
+		transport.Proxy = http.ProxyURL(parsed)
+	}
+	if c.transport != nil {
+		c.transport.CloseIdleConnections()
+	}
+	c.transport = transport
+	c.proxyURL = proxyRaw
+	return &http.Client{Timeout: clientTimeout, Transport: transport}, nil
+}
+
+// do executes req through the (possibly proxied) HTTP client.
+func (c *Client) do(req *http.Request) (*http.Response, error) {
+	httpClient, err := c.httpClientFor()
+	if err != nil {
+		return nil, err
+	}
+	return httpClient.Do(req)
+}
+
+// FetchEgressIP reports the public egress IP seen by an external
+// service, using the given proxy (empty = direct). It powers the
+// "test proxy" action in the admin settings: the operator can confirm
+// the deployment leaves through the same IP as their browser login.
+func FetchEgressIP(ctx context.Context, proxyRaw string) (string, error) {
+	probe := NewClientWithProxyProvider(func() (string, error) { return proxyRaw, nil })
+	httpClient, err := probe.httpClientFor()
+	if err != nil {
+		return "", err
+	}
+	httpClient.Timeout = 15 * time.Second
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.ipify.org?format=json", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("通过当前网络出口获取公网 IP 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("IP 探测服务返回 %d", resp.StatusCode)
+	}
+	var body struct {
+		IP string `json:"ip"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body); err != nil {
+		return "", fmt.Errorf("解析 IP 探测响应失败: %w", err)
+	}
+	if strings.TrimSpace(body.IP) == "" {
+		return "", fmt.Errorf("IP 探测服务未返回 IP")
+	}
+	return body.IP, nil
 }
 
 // userAgent is sent on every upstream request. Sub2API (since v0.2.14/0.2.15)
@@ -127,7 +264,7 @@ func describeUpstreamError(action string, status int, raw []byte) error {
 	case "REFRESH_TOKEN_REUSED":
 		return fmt.Errorf("upstream %s status %d: refresh token 被重复使用（REFRESH_TOKEN_REUSED），上游已撤销整个 token 家族，请重新登录上游获取全新 token: %s", action, status, string(raw))
 	case "SESSION_BINDING_MISMATCH":
-		return fmt.Errorf("upstream %s status %d: 上游开启了会话 IP/UA 绑定（SESSION_BINDING_MISMATCH），该 token 不是在本服务所在服务器/IP 下登录生成的，整个会话家族已被撤销。请改用账号密码模式让本服务自行登录，或在上游关闭会话绑定: %s", action, status, string(raw))
+		return fmt.Errorf("upstream %s status %d: 上游开启了会话 IP/UA 绑定（SESSION_BINDING_MISMATCH），该 token 不是在本服务所在服务器/IP 下登录生成的，整个会话家族已被撤销。请改用账号密码模式让本服务自行登录（并可在【系统设置 → 上游代理】配置与浏览器登录同出口的 SOCKS5 代理，让登录与检测走同一 IP），或在上游关闭会话绑定: %s", action, status, string(raw))
 	}
 	return fmt.Errorf("upstream %s status %d: %s", action, status, string(raw))
 }
@@ -161,7 +298,7 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request upstream refresh: %w", err)
 	}
@@ -237,7 +374,7 @@ func (c *Client) LoginSub2API(ctx context.Context, creds AccountCredentials) (*L
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request upstream login: %w", err)
 	}
@@ -294,7 +431,7 @@ func (c *Client) IsSub2APITurnstileEnabled(ctx context.Context, baseURL string) 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return false, fmt.Errorf("request public settings: %w", err)
 	}
@@ -336,7 +473,7 @@ func (c *Client) Sub2APICaptchaBlocker(ctx context.Context, baseURL string) (str
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return "", false
 	}
@@ -869,7 +1006,7 @@ func (c *Client) getJSON(ctx context.Context, creds AccountCredentials, path str
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return fmt.Errorf("request upstream: %w", err)
 	}
@@ -910,7 +1047,7 @@ func (c *Client) postJSON(ctx context.Context, creds AccountCredentials, path st
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return fmt.Errorf("request upstream: %w", err)
 	}

@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
-import { Download, Link2, Mail, Plus, Save, Send, TimerReset, Trash2, Upload } from "lucide-react";
+import { Download, Globe, Link2, Mail, Plus, Save, Send, TimerReset, Trash2, Upload } from "lucide-react";
 
 import { SettingsImportDialog } from "@/components/settings-import-dialog";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,10 @@ export function SettingsPage() {
   const [savingSMTP, setSavingSMTP] = useState(false);
   const [savingCustomMenuLinks, setSavingCustomMenuLinks] = useState(false);
   const [testingSMTP, setTestingSMTP] = useState(false);
+  const [proxyURL, setProxyURL] = useState("");
+  const [savingProxy, setSavingProxy] = useState(false);
+  const [testingProxy, setTestingProxy] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +71,7 @@ export function SettingsPage() {
       setCustomMenuLinks(settings.custom_menu_links ?? []);
       setGlobalCustomMenuLinks(settings.custom_menu_links ?? []);
       setRecipientsInput(settings.smtp.recipients.join("\n"));
+      setProxyURL(settings.proxy_url ?? "");
       setError(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载设置失败");
@@ -166,6 +171,40 @@ export function SettingsPage() {
     }
   }
 
+  async function handleSaveProxy(event: FormEvent) {
+    event.preventDefault();
+    setSavingProxy(true);
+    setError(null);
+    try {
+      const result = await api.updateProxy({ proxy_url: proxyURL.trim() });
+      setProxyURL(result.proxy_url);
+      setProxyTestResult(null);
+      toast({ title: result.proxy_url ? "代理设置已保存，立即生效" : "代理已清空，后续请求直连" });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存代理设置失败");
+    } finally {
+      setSavingProxy(false);
+    }
+  }
+
+  async function handleTestProxy() {
+    setTestingProxy(true);
+    setError(null);
+    setProxyTestResult(null);
+    try {
+      const result = await api.testProxy({ proxy_url: proxyURL.trim() });
+      setProxyTestResult(
+        result.proxy_used
+          ? `连通成功，当前通过代理的出口 IP：${result.ip}`
+          : `当前为直连，出口 IP：${result.ip}`
+      );
+    } catch (testError) {
+      setError(testError instanceof Error ? testError.message : "代理连通性测试失败");
+    } finally {
+      setTestingProxy(false);
+    }
+  }
+
   async function handleSaveCustomMenuLinks() {
     setSavingCustomMenuLinks(true);
     setError(null);
@@ -224,6 +263,7 @@ export function SettingsPage() {
     setCustomMenuLinks(snapshot.custom_menu_links ?? []);
     setGlobalCustomMenuLinks(snapshot.custom_menu_links ?? []);
     setRecipientsInput(snapshot.smtp.recipients.join("\n"));
+    setProxyURL(snapshot.proxy_url ?? "");
     setError(null);
     toast({ title: "系统设置已导入并生效" });
     return snapshot;
@@ -260,6 +300,7 @@ export function SettingsPage() {
           <TabsTrigger className="rounded-md" value="logs">日志管理</TabsTrigger>
           <TabsTrigger className="rounded-md" value="menu-links">自定义菜单</TabsTrigger>
           <TabsTrigger className="rounded-md" value="smtp">SMTP</TabsTrigger>
+          <TabsTrigger className="rounded-md" value="proxy">上游代理</TabsTrigger>
         </TabsList>
 
         <TabsContent value="schedule">
@@ -546,6 +587,54 @@ export function SettingsPage() {
                   <Button type="submit" disabled={savingSMTP}>
                     <Save className="mr-2 h-4 w-4" />
                     {savingSMTP ? "保存中..." : "保存 SMTP 设置"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="proxy">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="rounded-md bg-secondary p-2">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>上游代理</CardTitle>
+                  <CardDescription>所有访问上游站点的请求（登录、刷新 token、余额检测）都经此代理出口。留空为直连。</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-5" onSubmit={handleSaveProxy}>
+                <div className="space-y-2">
+                  <Label htmlFor="proxy-url">代理地址</Label>
+                  <Input
+                    id="proxy-url"
+                    placeholder="socks5://用户名:密码@主机:端口，如 socks5://127.0.0.1:1080"
+                    value={proxyURL}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyURL(e.target.value)}
+                  />
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    支持 socks5 / socks5h / http / https。适用场景：上游开启会话 IP 绑定或人机验证 IP 校验时，浏览器登录的 IP 与本服务部署服务器的 IP 不一致会被判 401
+                    （如 SESSION_BINDING_MISMATCH）。配置一台与浏览器同出口的代理（例如同一台机器或同一家庭宽带出口），让本服务的登录与检测都走同一个 IP
+                    即可对齐。保存后立即生效，无需重启。注意：代理本身无法替你通过人机验证，开了验证码的上游仍需账号密码模式下上游侧放行或改用 refresh token 模式。
+                  </p>
+                </div>
+
+                {proxyTestResult ? (
+                  <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm">{proxyTestResult}</div>
+                ) : null}
+
+                <div className="flex flex-wrap justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => void handleTestProxy()} disabled={testingProxy}>
+                    <Globe className="mr-2 h-4 w-4" />
+                    {testingProxy ? "测试中..." : "测试出口 IP"}
+                  </Button>
+                  <Button type="submit" disabled={savingProxy}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {savingProxy ? "保存中..." : "保存代理设置"}
                   </Button>
                 </div>
               </form>

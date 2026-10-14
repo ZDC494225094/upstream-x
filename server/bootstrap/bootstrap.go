@@ -122,10 +122,13 @@ func Build(cfg *config.Config, staticDir string) (*App, error) {
 		}, nil
 	})
 
+	upstreamClient := upstream.NewClientWithProxyProvider(func() (string, error) {
+		return settingsService.GetProxyURL()
+	})
 	detectorService := service.NewDetectorService(
 		repo,
 		accountService,
-		upstream.NewClient(),
+		upstreamClient,
 		alertMailer,
 		settingsService,
 	)

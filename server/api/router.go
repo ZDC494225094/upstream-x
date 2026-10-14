@@ -112,6 +112,8 @@ func (h *Handler) Router() (*gin.Engine, error) {
 		protected.PUT("/settings/custom-menu-links", h.updateCustomMenuLinks)
 		protected.PUT("/settings/smtp", h.updateSMTP)
 		protected.POST("/settings/smtp/test", h.sendSMTPTest)
+		protected.PUT("/settings/proxy", h.updateProxy)
+		protected.POST("/settings/proxy/test", h.testProxy)
 	}
 	h.registerFrontend(r)
 
@@ -741,6 +743,55 @@ func (h *Handler) updateSMTP(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func (h *Handler) updateProxy(c *gin.Context) {
+	var payload struct {
+		ProxyURL string `json:"proxy_url"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.settings.UpdateProxyURL(payload.ProxyURL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "proxy_url": strings.TrimSpace(payload.ProxyURL)})
+}
+
+// testProxy probes the public egress IP through the submitted proxy
+// URL (or the saved one when the payload is empty) so the operator can
+// verify the deployment exits through the expected IP.
+func (h *Handler) testProxy(c *gin.Context) {
+	var payload struct {
+		ProxyURL *string `json:"proxy_url"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	proxyURL := ""
+	if payload.ProxyURL != nil {
+		proxyURL = strings.TrimSpace(*payload.ProxyURL)
+	} else {
+		stored, err := h.settings.GetProxyURL()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		proxyURL = stored
+	}
+	if err := upstream.ValidateProxyURL(proxyURL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ip, err := upstream.FetchEgressIP(c.Request.Context(), proxyURL)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ip": ip, "proxy_used": proxyURL != ""})
 }
 
 func (h *Handler) sendSMTPTest(c *gin.Context) {

@@ -237,6 +237,7 @@ export interface SettingsSnapshot {
   log_retention_days: number;
   smtp: SMTPSettings;
   custom_menu_links: CustomMenuLink[];
+  proxy_url: string;
 }
 
 export interface SettingsExportBundle {
