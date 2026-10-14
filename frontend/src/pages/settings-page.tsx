@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import type { CustomMenuLink, SMTPSettings } from "@/lib/types";
+import type { CustomMenuLink, ProxySettings, SMTPSettings } from "@/lib/types";
 
 const defaultSMTP: SMTPSettings = {
   enabled: false,
@@ -52,7 +52,7 @@ export function SettingsPage() {
   const [savingSMTP, setSavingSMTP] = useState(false);
   const [savingCustomMenuLinks, setSavingCustomMenuLinks] = useState(false);
   const [testingSMTP, setTestingSMTP] = useState(false);
-  const [proxyURL, setProxyURL] = useState("");
+  const [proxyForm, setProxyForm] = useState<ProxySettings>({ host: "", port: 0, username: "", password: "", has_password: false, clear_password: false });
   const [savingProxy, setSavingProxy] = useState(false);
   const [testingProxy, setTestingProxy] = useState(false);
   const [proxyTestResult, setProxyTestResult] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export function SettingsPage() {
       setCustomMenuLinks(settings.custom_menu_links ?? []);
       setGlobalCustomMenuLinks(settings.custom_menu_links ?? []);
       setRecipientsInput(settings.smtp.recipients.join("\n"));
-      setProxyURL(settings.proxy_url ?? "");
+      setProxyForm({ ...(settings.proxy ?? { host: "", port: 0, username: "", has_password: false }), password: "", clear_password: false });
       setError(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载设置失败");
@@ -171,15 +171,26 @@ export function SettingsPage() {
     }
   }
 
+  function buildProxyPayload(): ProxySettings {
+    return {
+      host: proxyForm.host.trim(),
+      port: Number(proxyForm.port) || 0,
+      username: proxyForm.username.trim(),
+      password: proxyForm.password,
+      has_password: proxyForm.has_password,
+      clear_password: proxyForm.clear_password ?? false,
+    };
+  }
+
   async function handleSaveProxy(event: FormEvent) {
     event.preventDefault();
     setSavingProxy(true);
     setError(null);
     try {
-      const result = await api.updateProxy({ proxy_url: proxyURL.trim() });
-      setProxyURL(result.proxy_url);
+      const saved = await api.updateProxy(buildProxyPayload());
+      setProxyForm({ ...saved, password: "", clear_password: false });
       setProxyTestResult(null);
-      toast({ title: result.proxy_url ? "代理设置已保存，立即生效" : "代理已清空，后续请求直连" });
+      toast({ title: saved.host ? "代理设置已保存，立即生效" : "代理已关闭，后续请求直连" });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "保存代理设置失败");
     } finally {
@@ -192,7 +203,7 @@ export function SettingsPage() {
     setError(null);
     setProxyTestResult(null);
     try {
-      const result = await api.testProxy({ proxy_url: proxyURL.trim() });
+      const result = await api.testProxy(buildProxyPayload());
       setProxyTestResult(
         result.proxy_used
           ? `连通成功，当前通过代理的出口 IP：${result.ip}`
@@ -263,7 +274,7 @@ export function SettingsPage() {
     setCustomMenuLinks(snapshot.custom_menu_links ?? []);
     setGlobalCustomMenuLinks(snapshot.custom_menu_links ?? []);
     setRecipientsInput(snapshot.smtp.recipients.join("\n"));
-    setProxyURL(snapshot.proxy_url ?? "");
+    setProxyForm({ ...(snapshot.proxy ?? { host: "", port: 0, username: "", has_password: false }), password: "", clear_password: false });
     setError(null);
     toast({ title: "系统设置已导入并生效" });
     return snapshot;
@@ -602,26 +613,79 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <CardTitle>上游代理</CardTitle>
-                  <CardDescription>所有访问上游站点的请求（登录、刷新 token、余额检测）都经此代理出口。留空为直连。</CardDescription>
+                  <CardDescription>为全部上游请求（登录、刷新 token、余额检测）配置统一的 SOCKS5 出口。</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <form className="space-y-5" onSubmit={handleSaveProxy}>
-                <div className="space-y-2">
-                  <Label htmlFor="proxy-url">代理地址</Label>
-                  <Input
-                    id="proxy-url"
-                    placeholder="socks5://用户名:密码@主机:端口，如 socks5://127.0.0.1:1080"
-                    value={proxyURL}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyURL(e.target.value)}
-                  />
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    支持 socks5 / socks5h / http / https。适用场景：上游开启会话 IP 绑定或人机验证 IP 校验时，浏览器登录的 IP 与本服务部署服务器的 IP 不一致会被判 401
-                    （如 SESSION_BINDING_MISMATCH）。配置一台与浏览器同出口的代理（例如同一台机器或同一家庭宽带出口），让本服务的登录与检测都走同一个 IP
-                    即可对齐。保存后立即生效，无需重启。注意：代理本身无法替你通过人机验证或 2FA，开了验证码的上游仍需账号密码模式下上游侧放行或改用 refresh token 模式；会话绑定同时校验 IP 与 User-Agent，本服务自身登录/刷新/检测使用固定 UA（Upstream-X/1.1）天然一致，但导入浏览器签发的 token 时 UA 与浏览器不一致仍可能被判绑定不符而撤销——这类上游优先用账号密码模式让本服务经代理自行登录。Docker 部署注意：地址中的 127.0.0.1 指向容器自身，代理跑在宿主机时请填 host.docker.internal（Linux 的 Docker 需在 compose 里给服务加 extra_hosts: host.docker.internal:host-gateway）。
-                  </p>
+                <div className="grid gap-4 md:grid-cols-[1fr_160px]">
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-host">代理主机</Label>
+                    <Input
+                      id="proxy-host"
+                      placeholder="如 38.213.131.132 或 proxy.example.com"
+                      value={proxyForm.host}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyForm((current) => ({ ...current, host: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">仅主机名或 IP，不含 socks5:// 前缀。留空并保存即关闭代理。</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-port">端口</Label>
+                    <Input
+                      id="proxy-port"
+                      inputMode="numeric"
+                      placeholder="如 20002"
+                      value={proxyForm.port ? String(proxyForm.port) : ""}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyForm((current) => ({ ...current, port: Number(e.target.value.replace(/\D/g, "")) || 0 }))}
+                    />
+                  </div>
                 </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-username">
+                      用户名 <span className="ml-1 font-normal text-muted-foreground">选填</span>
+                    </Label>
+                    <Input
+                      id="proxy-username"
+                      autoComplete="off"
+                      value={proxyForm.username}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyForm((current) => ({ ...current, username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-password">
+                      密码
+                      {proxyForm.has_password && !proxyForm.clear_password ? (
+                        <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs font-normal text-secondary-foreground">已设置</span>
+                      ) : null}
+                    </Label>
+                    <Input
+                      id="proxy-password"
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder={proxyForm.has_password ? "留空保留现有密码" : ""}
+                      value={proxyForm.password ?? ""}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyForm((current) => ({ ...current, password: e.target.value }))}
+                    />
+                    {proxyForm.has_password ? (
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-primary"
+                          checked={proxyForm.clear_password ?? false}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) => setProxyForm((current) => ({ ...current, clear_password: e.target.checked }))}
+                        />
+                        清除已保存密码
+                      </label>
+                    ) : null}
+                  </div>
+                </div>
+
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  所有访问上游站点的请求（登录、刷新 token、余额检测）都经此 SOCKS5 代理出口，保存后立即生效、无需重启。适用场景：上游开启会话 IP 绑定或人机验证 IP 校验时，浏览器登录的 IP 与本服务部署服务器的 IP 不一致会被判 401（如 SESSION_BINDING_MISMATCH），配置一台与浏览器同出口的代理即可对齐。注意：代理本身无法替你通过人机验证或 2FA；会话绑定同时校验 IP 与 User-Agent，本服务自身登录/刷新/检测使用固定 UA（Upstream-X/1.1）天然一致，但导入浏览器签发的 token 时 UA 与浏览器不一致仍可能被判绑定不符而撤销——这类上游优先用账号密码模式让本服务经代理自行登录。Docker 部署注意：主机填 127.0.0.1 指的是容器自身，代理跑在宿主机时请填 host.docker.internal（Linux 的 Docker 需在 compose 里给服务加 extra_hosts: host.docker.internal:host-gateway）。
+                </p>
 
                 {proxyTestResult ? (
                   <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm">{proxyTestResult}</div>

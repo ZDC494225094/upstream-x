@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 	"upstream-x/server/config"
 	"upstream-x/server/repository"
-	"upstream-x/server/upstream"
 )
 
 const (
@@ -25,7 +25,10 @@ const (
 	smtpRecipientsKey  = "smtp.recipients"
 	smtpUseTLSKey      = "smtp.use_tls"
 	screenLayoutKey    = "screen.layout"
-	proxyURLKey        = "network.proxy_url"
+	proxyHostKey       = "network.proxy_host"
+	proxyPortKey       = "network.proxy_port"
+	proxyUsernameKey   = "network.proxy_username"
+	proxyPasswordKey   = "network.proxy_password"
 	customMenuLinksKey = "ui.custom_menu_links"
 )
 
@@ -59,7 +62,20 @@ type SettingsSnapshot struct {
 	LogRetentionDays        int                 `json:"log_retention_days"`
 	SMTP                    SMTPSettingsPayload `json:"smtp"`
 	CustomMenuLinks         []CustomMenuLink    `json:"custom_menu_links"`
-	ProxyURL                string              `json:"proxy_url"`
+	Proxy                   ProxySettingsPayload `json:"proxy"`
+}
+
+// ProxySettingsPayload is the structured SOCKS5 proxy configuration.
+// Password is write-only over the API: reads return it empty and set
+// HasPassword instead; on update, an empty Password keeps the stored
+// one unless ClearPassword is set.
+type ProxySettingsPayload struct {
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	Username      string `json:"username"`
+	Password      string `json:"password,omitempty"`
+	HasPassword   bool   `json:"has_password"`
+	ClearPassword bool   `json:"clear_password,omitempty"`
 }
 
 type CustomMenuLink struct {
@@ -105,24 +121,148 @@ func (s *SettingsService) UpdateScheduleInterval(minutes int) error {
 	return s.repo.SetScheduleInterval(minutes)
 }
 
-// GetProxyURL returns the configured outbound proxy for upstream
-// requests (empty = direct connection).
-func (s *SettingsService) GetProxyURL() (string, error) {
-	value, err := s.repo.GetSystemSetting(proxyURLKey)
+// GetProxySettings returns the structured proxy configuration with
+// the password redacted (HasPassword reports whether one is stored).
+func (s *SettingsService) GetProxySettings() (ProxySettingsPayload, error) {
+	host, err := s.repo.GetSystemSetting(proxyHostKey)
+	if err != nil {
+		return ProxySettingsPayload{}, err
+	}
+	portRaw, err := s.repo.GetSystemSetting(proxyPortKey)
+	if err != nil {
+		return ProxySettingsPayload{}, err
+	}
+	username, err := s.repo.GetSystemSetting(proxyUsernameKey)
+	if err != nil {
+		return ProxySettingsPayload{}, err
+	}
+	password, err := s.repo.GetSystemSetting(proxyPasswordKey)
+	if err != nil {
+		return ProxySettingsPayload{}, err
+	}
+	port, _ := strconv.Atoi(strings.TrimSpace(portRaw))
+	return ProxySettingsPayload{
+		Host:        strings.TrimSpace(host),
+		Port:        port,
+		Username:    strings.TrimSpace(username),
+		HasPassword: strings.TrimSpace(password) != "",
+	}, nil
+}
+
+func (s *SettingsService) storedProxyPassword() (string, error) {
+	value, err := s.repo.GetSystemSetting(proxyPasswordKey)
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(value), nil
 }
 
-// UpdateProxyURL validates and stores the outbound proxy URL.
-func (s *SettingsService) UpdateProxyURL(raw string) error {
-	trimmed := strings.TrimSpace(raw)
-	if err := upstream.ValidateProxyURL(trimmed); err != nil {
+// validateProxySettings checks the structured fields (host without any
+// scheme prefix, port range).
+func validateProxySettings(host string, port int) error {
+	if strings.Contains(host, "://") {
+		return fmt.Errorf("代理主机只填主机名或 IP，不要带 socks5:// 前缀")
+	}
+	if strings.ContainsAny(host, "/@:\t ") {
+		return fmt.Errorf("代理主机格式不正确，应为纯主机名或 IP（端口请填到端口栏）")
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("代理端口必须在 1-65535 之间")
+	}
+	return nil
+}
+
+// assembleProxyURL builds the socks5:// URL consumed by the upstream
+// HTTP client from the structured fields.
+func assembleProxyURL(host string, port int, username, password string) string {
+	if strings.TrimSpace(host) == "" {
+		return ""
+	}
+	u := url.URL{
+		Scheme: "socks5",
+		Host:   net.JoinHostPort(strings.TrimSpace(host), strconv.Itoa(port)),
+	}
+	if strings.TrimSpace(username) != "" {
+		if password != "" {
+			u.User = url.UserPassword(username, password)
+		} else {
+			u.User = url.User(username)
+		}
+	}
+	return u.String()
+}
+
+// GetProxyURL returns the assembled outbound proxy URL for upstream
+// requests (empty = direct connection).
+func (s *SettingsService) GetProxyURL() (string, error) {
+	settings, err := s.GetProxySettings()
+	if err != nil {
+		return "", err
+	}
+	if settings.Host == "" {
+		return "", nil
+	}
+	password, err := s.storedProxyPassword()
+	if err != nil {
+		return "", err
+	}
+	return assembleProxyURL(settings.Host, settings.Port, settings.Username, password), nil
+}
+
+// ResolveProxyURL assembles a proxy URL from submitted fields,
+// substituting the stored password when the submitted one is empty
+// (and ClearPassword is not set). Used by the proxy test endpoint so
+// the operator can test exactly what the form shows.
+func (s *SettingsService) ResolveProxyURL(payload ProxySettingsPayload) (string, error) {
+	host := strings.TrimSpace(payload.Host)
+	if host == "" {
+		return "", nil
+	}
+	if err := validateProxySettings(host, payload.Port); err != nil {
+		return "", err
+	}
+	password := payload.Password
+	if password == "" && !payload.ClearPassword {
+		stored, err := s.storedProxyPassword()
+		if err != nil {
+			return "", err
+		}
+		password = stored
+	}
+	return assembleProxyURL(host, payload.Port, payload.Username, password), nil
+}
+
+// UpdateProxySettings validates and stores the structured proxy
+// configuration. An empty host disables the proxy entirely. Password
+// semantics: empty keeps the stored password, ClearPassword removes
+// it, a non-empty value replaces it.
+func (s *SettingsService) UpdateProxySettings(payload ProxySettingsPayload) error {
+	host := strings.TrimSpace(payload.Host)
+	if host == "" {
+		return s.repo.SetSystemSettings(map[string]string{
+			proxyHostKey:     "",
+			proxyPortKey:     "",
+			proxyUsernameKey: "",
+			proxyPasswordKey: "",
+		})
+	}
+	if err := validateProxySettings(host, payload.Port); err != nil {
 		return err
 	}
+	password, err := s.storedProxyPassword()
+	if err != nil {
+		return err
+	}
+	if payload.ClearPassword {
+		password = ""
+	} else if payload.Password != "" {
+		password = payload.Password
+	}
 	return s.repo.SetSystemSettings(map[string]string{
-		proxyURLKey: trimmed,
+		proxyHostKey:     host,
+		proxyPortKey:     strconv.Itoa(payload.Port),
+		proxyUsernameKey: strings.TrimSpace(payload.Username),
+		proxyPasswordKey: password,
 	})
 }
 
@@ -265,7 +405,7 @@ func (s *SettingsService) Snapshot() (*SettingsSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	proxyURL, err := s.GetProxyURL()
+	proxy, err := s.GetProxySettings()
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +414,7 @@ func (s *SettingsService) Snapshot() (*SettingsSnapshot, error) {
 		LogRetentionDays:        logRetentionDays,
 		SMTP:                    smtp,
 		CustomMenuLinks:         customMenuLinks,
-		ProxyURL:                proxyURL,
+		Proxy:                   proxy,
 	}, nil
 }
 
@@ -422,7 +562,7 @@ func (s *SettingsService) ImportBundle(bundle SettingsTransferBundle) (*Settings
 	}); err != nil {
 		return nil, err
 	}
-	if err := s.UpdateProxyURL(bundle.Settings.ProxyURL); err != nil {
+	if err := s.UpdateProxySettings(bundle.Settings.Proxy); err != nil {
 		return nil, err
 	}
 

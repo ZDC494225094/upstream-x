@@ -237,7 +237,16 @@ export interface SettingsSnapshot {
   log_retention_days: number;
   smtp: SMTPSettings;
   custom_menu_links: CustomMenuLink[];
-  proxy_url: string;
+  proxy: ProxySettings;
+}
+
+export interface ProxySettings {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  has_password: boolean;
+  clear_password?: boolean;
 }
 
 export interface SettingsExportBundle {

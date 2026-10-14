@@ -11,6 +11,7 @@ import type {
   ScreenOverview,
   ScreenLayoutSettings,
   SettingsExportBundle,
+  ProxySettings,
   SettingsSnapshot,
   SMTPSettings,
 } from "./types";
@@ -174,12 +175,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  updateProxy: (payload: { proxy_url: string }) =>
-    request<{ success: boolean; proxy_url: string }>("/api/settings/proxy", {
+  updateProxy: (payload: ProxySettings) =>
+    request<ProxySettings>("/api/settings/proxy", {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
-  testProxy: (payload: { proxy_url: string }) =>
+  testProxy: (payload: ProxySettings) =>
     request<{ ip: string; proxy_used: boolean }>("/api/settings/proxy/test", {
       method: "POST",
       body: JSON.stringify(payload),
