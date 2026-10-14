@@ -326,6 +326,18 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", effectiveUserAgent(creds))
+	// Present the same ambient headers a browser sends when the
+	// upstream's own SPA performs this refresh from the site origin.
+	// Some customized Sub2API builds fingerprint refresh callers by
+	// more than IP/UA; a bare API-client header set gets rejected as
+	// REFRESH_TOKEN_INVALID there even for a live token.
+	origin := strings.TrimRight(creds.BaseURL, "/")
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Referer", origin+"/")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 
 	resp, err := c.do(req)
 	if err != nil {
