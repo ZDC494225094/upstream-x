@@ -619,7 +619,7 @@ export function SettingsPage() {
                   <p className="text-xs leading-relaxed text-muted-foreground">
                     支持 socks5 / socks5h / http / https。适用场景：上游开启会话 IP 绑定或人机验证 IP 校验时，浏览器登录的 IP 与本服务部署服务器的 IP 不一致会被判 401
                     （如 SESSION_BINDING_MISMATCH）。配置一台与浏览器同出口的代理（例如同一台机器或同一家庭宽带出口），让本服务的登录与检测都走同一个 IP
-                    即可对齐。保存后立即生效，无需重启。注意：代理本身无法替你通过人机验证，开了验证码的上游仍需账号密码模式下上游侧放行或改用 refresh token 模式。
+                    即可对齐。保存后立即生效，无需重启。注意：代理本身无法替你通过人机验证或 2FA，开了验证码的上游仍需账号密码模式下上游侧放行或改用 refresh token 模式；会话绑定同时校验 IP 与 User-Agent，本服务自身登录/刷新/检测使用固定 UA（Upstream-X/1.1）天然一致，但导入浏览器签发的 token 时 UA 与浏览器不一致仍可能被判绑定不符而撤销——这类上游优先用账号密码模式让本服务经代理自行登录。Docker 部署注意：地址中的 127.0.0.1 指向容器自身，代理跑在宿主机时请填 host.docker.internal（Linux 的 Docker 需在 compose 里给服务加 extra_hosts: host.docker.internal:host-gateway）。
                   </p>
                 </div>
 
