@@ -26,6 +26,10 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	SQLitePath string `yaml:"sqlite_path"`
+	// PostgresURL, when set (env DATABASE_URL / POSTGRES_URL), takes
+	// precedence over SQLite. Required on serverless platforms where the
+	// filesystem is ephemeral.
+	PostgresURL string `yaml:"postgres_url"`
 }
 
 type AdminConfig struct {
@@ -130,6 +134,11 @@ func applyEnv(cfg *Config) error {
 	}
 	if value, ok := lookupEnv("DATABASE_SQLITE_PATH"); ok {
 		cfg.Database.SQLitePath = value
+	}
+	if value, ok := lookupEnv("DATABASE_URL"); ok {
+		cfg.Database.PostgresURL = value
+	} else if value, ok := lookupEnv("POSTGRES_URL"); ok {
+		cfg.Database.PostgresURL = value
 	}
 	if value, ok := lookupEnv("ADMIN_USERNAME"); ok {
 		cfg.Admin.Username = value
