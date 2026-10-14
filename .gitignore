@@ -10,5 +10,4 @@ data/
 config/config.yaml
 tmp/
 bin/
-/server
 .env
