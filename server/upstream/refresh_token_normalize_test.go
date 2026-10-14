@@ -82,3 +82,24 @@ func TestRefreshUsesCustomUserAgent(t *testing.T) {
 		t.Fatalf("default UA changed: got %q", seenUA)
 	}
 }
+
+func TestRefreshSendsBrowserContextHeaders(t *testing.T) {
+	var origin, referer, secFetch string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin = r.Header.Get("Origin")
+		referer = r.Header.Get("Referer")
+		secFetch = r.Header.Get("Sec-Fetch-Site")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"access_token":"a","refresh_token":"rt_next"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	if _, err := client.RefreshSub2APIToken(context.Background(), AccountCredentials{
+		BaseURL: server.URL, Type: models.UpstreamTypeSub2API, RefreshToken: "rt_x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if origin != server.URL || referer != server.URL+"/" || secFetch != "same-origin" {
+		t.Fatalf("browser-context headers missing: origin=%q referer=%q sec-fetch-site=%q", origin, referer, secFetch)
+	}
+}
