@@ -1,0 +1,29 @@
+services:
+  app:
+    image: hamwong233/upstream-x:latest
+    pull_policy: always
+    container_name: upstream-x-monitor
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SERVER_PORT: "8080"
+      DATABASE_SQLITE_PATH: /app/data/app.db
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}"
+      AUTH_SESSION_SECRET: "${AUTH_SESSION_SECRET:?set AUTH_SESSION_SECRET in .env}"
+      AUTH_SESSION_MAX_AGE: "${AUTH_SESSION_MAX_AGE:-168h}"
+      AUTH_SESSION_SAME_SITE: "${AUTH_SESSION_SAME_SITE:-lax}"
+      AUTH_ALLOW_IFRAME_EMBEDDING: "${AUTH_ALLOW_IFRAME_EMBEDDING:-true}"
+      AUTH_IFRAME_ALLOWED_ORIGINS: "${AUTH_IFRAME_ALLOWED_ORIGINS:-}"
+      SECURITY_CREDENTIAL_KEY: "${SECURITY_CREDENTIAL_KEY:?set SECURITY_CREDENTIAL_KEY in .env}"
+      APP_TIME_ZONE: "${TZ:-Asia/Shanghai}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

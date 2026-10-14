@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 20% 96%;
+  --card: 222 42% 10%;
+  --card-foreground: 210 20% 96%;
+  --popover: 222 42% 10%;
+  --popover-foreground: 210 20% 96%;
+  --primary: 210 20% 96%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 20% 96%;
+  --muted: 217 33% 15%;
+  --muted-foreground: 215 16% 65%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 20% 96%;
+  --destructive: 0 62% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217 24% 18%;
+  --input: 217 24% 18%;
+  --ring: 212 27% 84%;
+}
+
+* {
+  @apply border-border;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.chart-tooltip-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.chart-tooltip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.table-scroll-clean {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.table-scroll-clean::-webkit-scrollbar {
+  display: none;
+}

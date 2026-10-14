@@ -1,0 +1,21 @@
+server:
+  port: "8080"
+
+database:
+  sqlite_path: "data/app.db"
+
+admin:
+  username: "admin"
+  password: "change-me-now"
+
+auth:
+  session_secret: "change-this-session-secret-please"
+  session_max_age: 168h
+  session_same_site: "none"
+  iframe_allowed_origins: []
+
+security:
+  credential_key: "change-this-credential-key-32chars"
+
+app:
+  time_zone: "Asia/Shanghai"

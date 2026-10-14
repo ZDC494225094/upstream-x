@@ -1,0 +1,23 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: upstream-x-monitor
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SERVER_PORT: "8080"
+      DATABASE_SQLITE_PATH: /app/data/app.db
+      APP_TIME_ZONE: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

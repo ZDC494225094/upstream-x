@@ -1,0 +1,14 @@
+.DS_Store
+.cache/
+.gocache/
+/node_modules/
+/package-lock.json
+frontend/node_modules
+frontend/dist
+frontend/*.tsbuildinfo
+data/
+config/config.yaml
+tmp/
+bin/
+/server
+.env

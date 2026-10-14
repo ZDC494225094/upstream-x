@@ -1,0 +1,9 @@
+{
+  "name": "upstream-x",
+  "private": true,
+  "scripts": {
+    "docker:build": "docker build --platform linux/amd64 -t hamwong233/upstream-x:latest .",
+    "docker:push": "docker push hamwong233/upstream-x:latest",
+    "docker:release": "npm run docker:build && npm run docker:push"
+  }
+}
