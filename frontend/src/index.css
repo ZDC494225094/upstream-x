@@ -2,49 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Upstream X design system — "Obsidian Cyan"
+ * Deep ink-navy surfaces with a single cyan accent. Dark is the primary
+ * theme (monitoring console); light keeps the same accent + radius scale.
+ */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  --background: 210 33% 97%;
+  --foreground: 222 47% 11%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 240 5.9% 10%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-  --destructive: 0 84.2% 60.2%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 192 91% 36%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 30% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 30% 94%;
+  --muted-foreground: 215 16% 42%;
+  --accent: 192 80% 92%;
+  --accent-foreground: 197 90% 24%;
+  --destructive: 0 84% 55%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 240 5.9% 10%;
-  --radius: 0.5rem;
+  --border: 214 24% 88%;
+  --input: 214 24% 88%;
+  --ring: 192 91% 36%;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: 222 47% 7%;
-  --foreground: 210 20% 96%;
-  --card: 222 42% 10%;
-  --card-foreground: 210 20% 96%;
-  --popover: 222 42% 10%;
-  --popover-foreground: 210 20% 96%;
-  --primary: 210 20% 96%;
-  --primary-foreground: 222 47% 11%;
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 20% 96%;
-  --muted: 217 33% 15%;
-  --muted-foreground: 215 16% 65%;
-  --accent: 217 33% 17%;
-  --accent-foreground: 210 20% 96%;
-  --destructive: 0 62% 48%;
+  --background: 224 48% 6%;
+  --foreground: 210 25% 94%;
+  --card: 223 42% 9%;
+  --card-foreground: 210 25% 94%;
+  --popover: 223 42% 9%;
+  --popover-foreground: 210 25% 94%;
+  --primary: 190 95% 52%;
+  --primary-foreground: 222 60% 8%;
+  --secondary: 221 35% 14%;
+  --secondary-foreground: 210 25% 94%;
+  --muted: 221 35% 13%;
+  --muted-foreground: 215 18% 62%;
+  --accent: 221 35% 16%;
+  --accent-foreground: 190 95% 70%;
+  --destructive: 0 70% 50%;
   --destructive-foreground: 0 0% 100%;
-  --border: 217 24% 18%;
-  --input: 217 24% 18%;
-  --ring: 212 27% 84%;
+  --border: 220 30% 16%;
+  --input: 220 30% 18%;
+  --ring: 190 95% 52%;
 }
 
 * {
@@ -62,6 +67,34 @@ html.dark {
 body {
   @apply bg-background text-foreground font-sans antialiased;
   min-height: 100vh;
+}
+
+/* Ambient glow behind the app in dark mode: two faint cyan/blue radials. */
+.dark body {
+  background-image:
+    radial-gradient(720px 380px at 85% -10%, rgba(34, 211, 238, 0.09), transparent 60%),
+    radial-gradient(640px 420px at -10% 110%, rgba(59, 130, 246, 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 #root {

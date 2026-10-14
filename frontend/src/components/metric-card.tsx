@@ -19,18 +19,18 @@ export function MetricCard({
   tone = "default",
 }: MetricCardProps) {
   return (
-    <Card className="overflow-hidden">
+    <Card className="group overflow-hidden transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(2,132,199,0.14)]">
       <CardHeader>
         <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <CardTitle className="mt-2 text-3xl">{value}</CardTitle>
+          <p className="text-[13px] font-medium tracking-wide text-muted-foreground">{title}</p>
+          <CardTitle className="mt-2 font-mono text-[32px] leading-none tracking-tight">{value}</CardTitle>
         </div>
         <div
           className={cn(
-            "rounded-md p-3",
-            tone === "warning" && "bg-muted text-foreground",
-            tone === "danger" && "bg-muted text-foreground",
-            tone === "default" && "bg-muted text-foreground",
+            "rounded-xl p-3 ring-1",
+            tone === "warning" && "bg-amber-500/10 text-amber-500 ring-amber-500/25",
+            tone === "danger" && "bg-red-500/10 text-red-500 ring-red-500/25",
+            tone === "default" && "bg-cyan-500/10 text-cyan-500 ring-cyan-500/25",
           )}
         >
           <Icon className="h-6 w-6" />

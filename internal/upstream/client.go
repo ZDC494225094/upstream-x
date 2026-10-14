@@ -81,6 +81,9 @@ type LoginResult struct {
 	RefreshToken      string
 	Requires2FA       bool
 	TurnstileRequired bool
+	// CaptchaProvider names the captcha system blocking password login:
+	// "turnstile", "tencent" or "aliyun" (empty when TurnstileRequired is false).
+	CaptchaProvider string
 }
 
 type Client struct {
@@ -93,18 +96,58 @@ func NewClient() *Client {
 	}
 }
 
+// userAgent is sent on every upstream request. Sub2API (since v0.2.14/0.2.15)
+// can bind a session to the login-time IP + User-Agent fingerprint
+// (session_binding); a stable UA keeps refresh/login/data calls consistent.
+const userAgent = "Upstream-X/1.1"
+
+// upstreamErrorReason extracts the machine-readable reason code from a
+// Sub2API-style error body: {"code":401,"message":"...","reason":"..."}.
+func upstreamErrorReason(raw []byte) string {
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(body.Reason)
+}
+
+// describeUpstreamError turns an upstream non-2xx response into an actionable
+// message. Since the Sub2API protocol change, refresh tokens are single-use
+// rotating tokens: any validation/check consumes the presented token and the
+// server only honours the newest one it issued.
+func describeUpstreamError(action string, status int, raw []byte) error {
+	reason := upstreamErrorReason(raw)
+	switch reason {
+	case "REFRESH_TOKEN_INVALID":
+		return fmt.Errorf("upstream %s status %d: refresh token 已失效（REFRESH_TOKEN_INVALID）。新版 Sub2API 的 refresh token 是一次性轮换的：每次校验/检测都会消耗旧 token 并换发新 token，常见原因：①该 token 已被校验、检测或浏览器会话使用过；②填入的不是以 rt_ 开头的 refresh token（不要填 access token 或 API Key）；③上游账号改过密码导致整个 token 家族被撤销；④token 复制不完整或带了空格/换行。请在上游重新登录获取最新 refresh token 后立即填入，中途不要再用该会话做其他操作；更推荐改用账号密码模式（每次自动重新登录，不受轮换影响）: %s", action, status, string(raw))
+	case "REFRESH_TOKEN_EXPIRED":
+		return fmt.Errorf("upstream %s status %d: refresh token 已过期（REFRESH_TOKEN_EXPIRED），请重新登录上游获取新 token，或改用账号密码模式: %s", action, status, string(raw))
+	case "REFRESH_TOKEN_REUSED":
+		return fmt.Errorf("upstream %s status %d: refresh token 被重复使用（REFRESH_TOKEN_REUSED），上游已撤销整个 token 家族，请重新登录上游获取全新 token: %s", action, status, string(raw))
+	case "SESSION_BINDING_MISMATCH":
+		return fmt.Errorf("upstream %s status %d: 上游开启了会话 IP/UA 绑定（SESSION_BINDING_MISMATCH），该 token 不是在本服务所在服务器/IP 下登录生成的，整个会话家族已被撤销。请改用账号密码模式让本服务自行登录，或在上游关闭会话绑定: %s", action, status, string(raw))
+	}
+	return fmt.Errorf("upstream %s status %d: %s", action, status, string(raw))
+}
+
 func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentials) (*RefreshResult, error) {
 	if creds.Type != models.UpstreamTypeSub2API {
 		return nil, fmt.Errorf("refresh token is only supported for sub2api")
 	}
-	if strings.TrimSpace(creds.RefreshToken) == "" {
+	refreshToken := strings.TrimSpace(creds.RefreshToken)
+	if refreshToken == "" {
 		return nil, fmt.Errorf("sub2api refresh token is missing")
+	}
+	if strings.HasPrefix(refreshToken, "sk-") {
+		return nil, fmt.Errorf("填入的内容以 sk- 开头，这是 API Key 不是 refresh token；Sub2API 的 refresh token 以 rt_ 开头，请在上游重新登录后获取，或改用账号密码模式")
 	}
 
 	base := strings.TrimRight(creds.BaseURL, "/")
 	fullURL := base + "/api/v1/auth/refresh"
 	body, err := json.Marshal(map[string]string{
-		"refresh_token": creds.RefreshToken,
+		"refresh_token": refreshToken,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal refresh payload: %w", err)
@@ -116,6 +159,7 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -128,7 +172,7 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 		return nil, fmt.Errorf("read refresh response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("upstream refresh status %d: %s", resp.StatusCode, string(raw))
+		return nil, describeUpstreamError("refresh", resp.StatusCode, raw)
 	}
 
 	var refreshResp struct {
@@ -146,23 +190,23 @@ func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentia
 	}
 
 	accessToken := strings.TrimSpace(refreshResp.AccessToken)
-	refreshToken := strings.TrimSpace(refreshResp.RefreshToken)
+	newRefreshToken := strings.TrimSpace(refreshResp.RefreshToken)
 	if accessToken == "" {
 		accessToken = strings.TrimSpace(refreshResp.Data.AccessToken)
 	}
-	if refreshToken == "" {
-		refreshToken = strings.TrimSpace(refreshResp.Data.RefreshToken)
+	if newRefreshToken == "" {
+		newRefreshToken = strings.TrimSpace(refreshResp.Data.RefreshToken)
 	}
 	if accessToken == "" {
 		return nil, fmt.Errorf("upstream refresh response missing access_token")
 	}
-	if refreshToken == "" {
-		refreshToken = creds.RefreshToken
+	if newRefreshToken == "" {
+		newRefreshToken = refreshToken
 	}
 
 	return &RefreshResult{
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: newRefreshToken,
 	}, nil
 }
 
@@ -174,9 +218,8 @@ func (c *Client) LoginSub2API(ctx context.Context, creds AccountCredentials) (*L
 		return nil, fmt.Errorf("sub2api email or password is missing")
 	}
 
-	turnstileEnabled, turnstileErr := c.IsSub2APITurnstileEnabled(ctx, creds.BaseURL)
-	if turnstileErr == nil && turnstileEnabled {
-		return &LoginResult{TurnstileRequired: true}, nil
+	if provider, blocked := c.Sub2APICaptchaBlocker(ctx, creds.BaseURL); blocked {
+		return &LoginResult{TurnstileRequired: true, CaptchaProvider: provider}, nil
 	}
 
 	base := strings.TrimRight(creds.BaseURL, "/")
@@ -192,6 +235,7 @@ func (c *Client) LoginSub2API(ctx context.Context, creds AccountCredentials) (*L
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -204,10 +248,14 @@ func (c *Client) LoginSub2API(ctx context.Context, creds AccountCredentials) (*L
 		return nil, fmt.Errorf("read login response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if strings.Contains(strings.ToLower(string(raw)), "turnstile") {
-			return &LoginResult{TurnstileRequired: true}, nil
+		lowerRaw := strings.ToLower(string(raw))
+		switch {
+		case strings.Contains(lowerRaw, "turnstile"):
+			return &LoginResult{TurnstileRequired: true, CaptchaProvider: "turnstile"}, nil
+		case strings.Contains(lowerRaw, "tencent") || strings.Contains(lowerRaw, "captcha"):
+			return &LoginResult{TurnstileRequired: true, CaptchaProvider: "captcha"}, nil
 		}
-		return nil, fmt.Errorf("upstream login status %d: %s", resp.StatusCode, string(raw))
+		return nil, describeUpstreamError("login", resp.StatusCode, raw)
 	}
 
 	var loginResp struct {
@@ -244,6 +292,7 @@ func (c *Client) IsSub2APITurnstileEnabled(ctx context.Context, baseURL string) 
 		return false, fmt.Errorf("new settings request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -262,13 +311,61 @@ func (c *Client) IsSub2APITurnstileEnabled(ctx context.Context, baseURL string) 
 	var settingsResp struct {
 		Code int `json:"code"`
 		Data struct {
-			TurnstileEnabled bool `json:"turnstile_enabled"`
+			TurnstileEnabled      bool `json:"turnstile_enabled"`
+			TencentCaptchaEnabled bool `json:"tencent_captcha_enabled"`
+			AliyunCaptchaEnabled  bool `json:"aliyun_captcha_enabled"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &settingsResp); err != nil {
 		return false, fmt.Errorf("decode public settings response: %w", err)
 	}
 	return settingsResp.Data.TurnstileEnabled, nil
+}
+
+// Sub2APICaptchaBlocker reports whether password login against this Sub2API
+// deployment is impossible for a server-side client because a human captcha
+// is enabled (Turnstile / Tencent / Aliyun). Newer Sub2API versions support
+// three captcha providers; checking only Turnstile used to misdiagnose the
+// other two as generic login failures.
+func (c *Client) Sub2APICaptchaBlocker(ctx context.Context, baseURL string) (string, bool) {
+	fullURL := strings.TrimRight(baseURL, "/") + "/api/v1/settings/public"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false
+	}
+
+	var settingsResp struct {
+		Data struct {
+			TurnstileEnabled      bool `json:"turnstile_enabled"`
+			TencentCaptchaEnabled bool `json:"tencent_captcha_enabled"`
+			AliyunCaptchaEnabled  bool `json:"aliyun_captcha_enabled"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &settingsResp); err != nil {
+		return "", false
+	}
+	switch {
+	case settingsResp.Data.TurnstileEnabled:
+		return "turnstile", true
+	case settingsResp.Data.TencentCaptchaEnabled:
+		return "tencent", true
+	case settingsResp.Data.AliyunCaptchaEnabled:
+		return "aliyun", true
+	}
+	return "", false
 }
 
 func (c *Client) Fetch(ctx context.Context, creds AccountCredentials) (*Snapshot, error) {
@@ -765,8 +862,9 @@ func (c *Client) getJSON(ctx context.Context, creds AccountCredentials, path str
 		return fmt.Errorf("new request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+creds.BearerToken)
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(creds.BearerToken))
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 	if creds.Type == models.UpstreamTypeNewAPI && creds.NewAPIUser != "" {
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}
@@ -804,9 +902,10 @@ func (c *Client) postJSON(ctx context.Context, creds AccountCredentials, path st
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+creds.BearerToken)
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(creds.BearerToken))
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 	if creds.Type == models.UpstreamTypeNewAPI && creds.NewAPIUser != "" {
 		req.Header.Set("New-Api-User", creds.NewAPIUser)
 	}

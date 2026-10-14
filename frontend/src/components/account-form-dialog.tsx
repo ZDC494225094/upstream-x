@@ -55,7 +55,9 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   initial?: Account | null;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
-  onValidate: (payload: Record<string, unknown>) => Promise<void>;
+  onValidate: (payload: Record<string, unknown>) => Promise<
+    { access_token?: string; refresh_token?: string } | undefined
+  >;
 }
 
 function FieldNote({ children }: { children: React.ReactNode }) {
@@ -101,11 +103,20 @@ export function AccountFormDialog({ open, onOpenChange, initial, onSubmit, onVal
     setSubmitting(true);
     setError(null);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         ...form,
         low_balance_threshold_usd: Number(form.low_balance_threshold_usd),
       };
-      await onValidate(payload);
+      const validated = await onValidate(payload);
+      // Validation may have rotated the Sub2API refresh token upstream;
+      // persist the fresh credentials returned by validation, not the
+      // burned ones still sitting in the form.
+      if (validated?.refresh_token) {
+        payload.refresh_token = validated.refresh_token;
+      }
+      if (validated?.access_token) {
+        payload.bearer_token = validated.access_token;
+      }
       await onSubmit(payload);
       onOpenChange(false);
     } catch (submitError) {
@@ -283,8 +294,8 @@ export function AccountFormDialog({ open, onOpenChange, initial, onSubmit, onVal
                 {isNewApi
                   ? "New API 需要同时填写 Bearer Token 和 New-Api-User。"
                   : isSub2APIPasswordMode
-                    ? "账号密码模式下，系统会自动登录并维护一套独立 token；如果上游开启 Turnstile、开启 2FA，或登录协议尚未确认，请改用 Refresh Token 模式。"
-                    : "Refresh Token 模式下，系统会自动换取并续期 Bearer Token；这种方式也最兼容开启了 Turnstile 或 2FA 的站点。"}
+                    ? "账号密码模式下，系统会自动登录并维护一套独立 token，不受 refresh token 轮换影响（推荐）。如果上游开启了人机验证（Turnstile / 腾讯 / 阿里云）或 2FA，服务端无法自动登录，请改用 Refresh Token 模式。"
+                    : "新版 Sub2API 的 refresh token（rt_ 开头）是一次性轮换的：每次校验/检测都会换新，校验成功后系统会自动保存最新 token。不要把浏览器正在使用的会话 token 填进来（会被轮换或会话绑定撤销），建议在上游单独登录一个专用会话取 token 后立即填入；长期使用更推荐账号密码模式。"}
               </FieldNote>
             </section>
 

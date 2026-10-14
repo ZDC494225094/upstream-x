@@ -43,6 +43,7 @@ export default {
       },
       fontFamily: {
         sans: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
+        mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
       },
       boxShadow: {
         soft: "0 20px 50px rgba(15, 23, 42, 0.12)",

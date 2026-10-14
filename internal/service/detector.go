@@ -24,6 +24,17 @@ type DetectorService struct {
 	client   *upstream.Client
 	mailer   *mailer.Mailer
 	settings *SettingsService
+	// accountLocks serializes checks per account: Sub2API refresh tokens are
+	// single-use rotating tokens, so two concurrent renewals for the same
+	// account would burn each other's token.
+	accountLocks sync.Map // uint -> *sync.Mutex
+}
+
+func (s *DetectorService) lockAccount(id uint) func() {
+	value, _ := s.accountLocks.LoadOrStore(id, &sync.Mutex{})
+	mutex := value.(*sync.Mutex)
+	mutex.Lock()
+	return mutex.Unlock
 }
 
 const maxConcurrentChecks = 4
@@ -38,17 +49,29 @@ func NewDetectorService(repo *repository.Repository, accounts *AccountService, c
 	}
 }
 
-func (s *DetectorService) ValidateAccount(ctx context.Context, account *models.UpstreamAccount) (*upstream.Snapshot, error) {
+// ValidateAccount fetches a snapshot and also returns the credentials that
+// were actually used. For Sub2API accounts the renewal step may rotate the
+// refresh token; the returned credentials carry the NEW token so callers
+// validating a not-yet-saved (transient) account can persist it instead of
+// the now-burned one from the form.
+func (s *DetectorService) ValidateAccount(ctx context.Context, account *models.UpstreamAccount) (*upstream.Snapshot, *upstream.AccountCredentials, error) {
+	unlock := s.lockAccount(account.ID)
+	defer unlock()
+
 	creds, err := s.credentialsFor(account)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return s.fetchSnapshot(ctx, account, creds)
+	snapshot, used, err := s.fetchSnapshot(ctx, account, creds)
+	if err != nil {
+		return nil, nil, err
+	}
+	return snapshot, used, nil
 }
 
 func (s *DetectorService) CheckAccount(ctx context.Context, account *models.UpstreamAccount, triggeredBy string) error {
 	startedAt := time.Now()
-	snapshot, err := s.ValidateAccount(ctx, account)
+	snapshot, _, err := s.ValidateAccount(ctx, account)
 	if err != nil {
 		run := &models.DetectionRun{
 			AccountID:      account.ID,
@@ -946,22 +969,22 @@ func (s *DetectorService) credentialsFor(account *models.UpstreamAccount) (upstr
 	}, nil
 }
 
-func (s *DetectorService) fetchSnapshot(ctx context.Context, account *models.UpstreamAccount, creds upstream.AccountCredentials) (*upstream.Snapshot, error) {
+func (s *DetectorService) fetchSnapshot(ctx context.Context, account *models.UpstreamAccount, creds upstream.AccountCredentials) (*upstream.Snapshot, *upstream.AccountCredentials, error) {
 	if account.Type == models.UpstreamTypeSub2API && strings.TrimSpace(creds.BearerToken) == "" {
 		var err error
 		creds, err = s.renewSub2APICredentials(ctx, account, creds)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	snapshot, err := s.client.Fetch(ctx, creds)
 	if err == nil {
-		return snapshot, nil
+		return snapshot, &creds, nil
 	}
 
 	if account.Type != models.UpstreamTypeSub2API || !isAuthFailure(err) {
-		return nil, err
+		return nil, nil, err
 	}
 	renewed, renewErr := s.renewSub2APICredentials(ctx, account, creds)
 	if renewErr != nil {
@@ -969,10 +992,14 @@ func (s *DetectorService) fetchSnapshot(ctx context.Context, account *models.Ups
 		if normalizeSub2APIAuthMode(account.Type, account.Sub2APIAuthMode) == models.Sub2APIAuthModePassword {
 			action = "password login"
 		}
-		return nil, fmt.Errorf("%w; %s failed: %v", err, action, renewErr)
+		return nil, nil, fmt.Errorf("%w; %s failed: %v", err, action, renewErr)
 	}
 	creds = renewed
-	return s.client.Fetch(ctx, creds)
+	snapshot, err = s.client.Fetch(ctx, creds)
+	if err != nil {
+		return nil, nil, err
+	}
+	return snapshot, &creds, nil
 }
 
 func (s *DetectorService) renewSub2APICredentials(ctx context.Context, account *models.UpstreamAccount, creds upstream.AccountCredentials) (upstream.AccountCredentials, error) {
@@ -983,7 +1010,11 @@ func (s *DetectorService) renewSub2APICredentials(ctx context.Context, account *
 			return creds, err
 		}
 		if result.TurnstileRequired {
-			return creds, fmt.Errorf("sub2api login requires turnstile verification; please switch to refresh token mode")
+			provider := result.CaptchaProvider
+			if provider == "" {
+				provider = "captcha"
+			}
+			return creds, fmt.Errorf("sub2api 上游开启了人机验证（%s），服务端无法用账号密码自动登录；请改用 refresh token 模式，或在上游关闭人机验证", provider)
 		}
 		if result.Requires2FA {
 			return creds, fmt.Errorf("sub2api login requires 2FA; please switch to refresh token mode")
@@ -1021,7 +1052,10 @@ func isAuthFailure(err error) bool {
 	return strings.Contains(message, "status 401") ||
 		strings.Contains(message, "token has expired") ||
 		strings.Contains(message, "invalid token") ||
-		strings.Contains(message, "unauthorized")
+		strings.Contains(message, "unauthorized") ||
+		strings.Contains(message, "session_binding") ||
+		strings.Contains(message, "session binding") ||
+		strings.Contains(message, "token_revoked")
 }
 
 func sameFloat(a, b float64) bool {

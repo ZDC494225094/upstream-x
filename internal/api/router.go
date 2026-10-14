@@ -17,6 +17,7 @@ import (
 	"upstream-x/internal/mailer"
 	"upstream-x/internal/scheduler"
 	"upstream-x/internal/service"
+	"upstream-x/internal/upstream"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -396,12 +397,12 @@ func (h *Handler) validateDraftAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	snapshot, err := h.detector.ValidateAccount(c.Request.Context(), account)
+	snapshot, usedCreds, err := h.detector.ValidateAccount(c.Request.Context(), account)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, snapshot)
+	c.JSON(http.StatusOK, validationResponse(snapshot, usedCreds))
 }
 
 func (h *Handler) updateAccount(c *gin.Context) {
@@ -479,17 +480,36 @@ func (h *Handler) validateAccount(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
+			// BuildTransient drops the ID; restore it so a token renewal during
+			// validation persists the rotated refresh token to this account
+			// instead of silently discarding it (which burns the stored one).
+			account.ID = id
 		} else {
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 		}
 	}
 
-	snapshot, err := h.detector.ValidateAccount(c.Request.Context(), account)
+	snapshot, usedCreds, err := h.detector.ValidateAccount(c.Request.Context(), account)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, snapshot)
+	c.JSON(http.StatusOK, validationResponse(snapshot, usedCreds))
+}
+
+// validationResponse returns the snapshot plus the credentials that were
+// actually used. Sub2API refresh tokens rotate on every renewal, so after a
+// successful validation the token from the submitted form may already be
+// burned; the frontend must persist these returned credentials instead.
+func validationResponse(snapshot *upstream.Snapshot, usedCreds *upstream.AccountCredentials) gin.H {
+	response := gin.H{"snapshot": snapshot}
+	if usedCreds != nil && (usedCreds.BearerToken != "" || usedCreds.RefreshToken != "") {
+		response["credentials"] = gin.H{
+			"access_token":  usedCreds.BearerToken,
+			"refresh_token": usedCreds.RefreshToken,
+		}
+	}
+	return response
 }
 
 func (h *Handler) checkAccount(c *gin.Context) {

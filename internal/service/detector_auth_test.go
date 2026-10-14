@@ -28,7 +28,7 @@ func TestSub2APIPasswordModeDoesNotReloginAfterNonAuthFailure(t *testing.T) {
 
 	account, creds := passwordAccountForAuthTest(server.URL, "stale-access")
 	detector := &DetectorService{client: upstream.NewClient()}
-	_, err := detector.fetchSnapshot(context.Background(), account, creds)
+	_, _, err := detector.fetchSnapshot(context.Background(), account, creds)
 	if err == nil || !strings.Contains(err.Error(), "status 500") {
 		t.Fatalf("fetch error = %v, want upstream status 500", err)
 	}
@@ -68,7 +68,7 @@ func TestSub2APIPasswordModeReloginsAfterUnauthorized(t *testing.T) {
 
 	account, creds := passwordAccountForAuthTest(server.URL, "stale-access")
 	detector := &DetectorService{client: upstream.NewClient()}
-	snapshot, err := detector.fetchSnapshot(context.Background(), account, creds)
+	snapshot, _, err := detector.fetchSnapshot(context.Background(), account, creds)
 	if err != nil {
 		t.Fatalf("fetch snapshot: %v", err)
 	}

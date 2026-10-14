@@ -15,8 +15,24 @@ import type {
   SMTPSettings,
 } from "./types";
 
+// When the frontend is hosted separately from the Go backend (e.g. on
+// Vercel), set VITE_API_BASE to the backend origin at build time. Same-origin
+// deployments leave it empty and keep using relative /api paths.
+const API_BASE = ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
+  ?.VITE_API_BASE ?? "").replace(/\/+$/, "");
+
+export interface ValidatedCredentials {
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface ValidateAccountResult {
+  snapshot: unknown;
+  credentials?: ValidatedCredentials;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(path.startsWith("/") ? `${API_BASE}${path}` : path, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -89,12 +105,12 @@ export const api = {
       method: "DELETE",
     }),
   validateNewAccount: (payload: Record<string, unknown>) =>
-    request("/api/accounts/validate", {
+    request<ValidateAccountResult>("/api/accounts/validate", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
   validateAccount: (id: number) =>
-    request(`/api/accounts/${id}/validate`, { method: "POST" }),
+    request<ValidateAccountResult>(`/api/accounts/${id}/validate`, { method: "POST" }),
   checkAccount: (id: number) =>
     request(`/api/accounts/${id}/check`, { method: "POST" }),
   accountOverview: (id: number) =>

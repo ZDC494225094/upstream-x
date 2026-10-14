@@ -71,14 +71,21 @@ export function AccountsPage() {
   }
 
   async function handleValidate(payload: Record<string, unknown>) {
+    // Sub2API refresh tokens rotate during validation: the response carries
+    // the NEW credentials, and the dialog must save those instead of the
+    // (now burned) values from the form.
     if (editing) {
-      await api.request(`/api/accounts/${editing.id}/validate`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      return;
+      const result = await api.request<import("@/lib/api").ValidateAccountResult>(
+        `/api/accounts/${editing.id}/validate`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+      return result.credentials;
     }
-    await api.validateNewAccount(payload);
+    const result = await api.validateNewAccount(payload);
+    return result.credentials;
   }
 
   async function handleDelete(id: number) {
