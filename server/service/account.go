@@ -187,7 +187,7 @@ func (s *AccountService) BuildTransient(payload AccountPayload) (*models.Upstrea
 	}
 	var refreshToken string
 	if strings.TrimSpace(payload.RefreshToken) != "" {
-		refreshToken, err = s.cipher.Encrypt(payload.RefreshToken)
+		refreshToken, err = s.cipher.Encrypt(upstream.NormalizeRefreshToken(payload.RefreshToken))
 		if err != nil {
 			return nil, err
 		}
@@ -265,7 +265,7 @@ func (s *AccountService) Update(id uint, payload AccountPayload) (*models.Upstre
 	}
 	if merged.Type == models.UpstreamTypeSub2API {
 		if strings.TrimSpace(payload.RefreshToken) != "" || previousType != merged.Type {
-			encrypted, err := s.cipher.Encrypt(merged.RefreshToken)
+			encrypted, err := s.cipher.Encrypt(upstream.NormalizeRefreshToken(merged.RefreshToken))
 			if err != nil {
 				return nil, err
 			}

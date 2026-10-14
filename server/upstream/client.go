@@ -269,11 +269,26 @@ func describeUpstreamError(action string, status int, raw []byte) error {
 	return fmt.Errorf("upstream %s status %d: %s", action, status, string(raw))
 }
 
+// NormalizeRefreshToken cleans a user-pasted refresh token: trims
+// whitespace and strips one pair of surrounding quotes, which users
+// easily include when copying the value out of a JSON blob or browser
+// devtools. A stray leading quote otherwise fails Sub2API's rt_
+// prefix check and surfaces as a misleading REFRESH_TOKEN_INVALID.
+func NormalizeRefreshToken(raw string) string {
+	token := strings.TrimSpace(raw)
+	if len(token) >= 2 {
+		if (token[0] == '"' && token[len(token)-1] == '"') || (token[0] == '\'' && token[len(token)-1] == '\'') {
+			token = strings.TrimSpace(token[1 : len(token)-1])
+		}
+	}
+	return token
+}
+
 func (c *Client) RefreshSub2APIToken(ctx context.Context, creds AccountCredentials) (*RefreshResult, error) {
 	if creds.Type != models.UpstreamTypeSub2API {
 		return nil, fmt.Errorf("refresh token is only supported for sub2api")
 	}
-	refreshToken := strings.TrimSpace(creds.RefreshToken)
+	refreshToken := NormalizeRefreshToken(creds.RefreshToken)
 	if refreshToken == "" {
 		return nil, fmt.Errorf("sub2api refresh token is missing")
 	}
