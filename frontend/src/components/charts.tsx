@@ -14,14 +14,12 @@ import { type ChartGranularity, currency, formatChartBucketLabel, getChartBucket
 type ChartPoint = Record<string, string | number>;
 
 const chartColors = [
-  "hsl(160 84% 30%)",
-  "hsl(25 95% 53%)",
-  "hsl(221 83% 53%)",
-  "hsl(45 93% 47%)",
-  "hsl(262 83% 58%)",
-  "hsl(0 72% 51%)",
-  "hsl(190 90% 35%)",
-  "hsl(330 81% 60%)",
+  "hsl(211 100% 45%)",
+  "hsl(135 59% 49%)",
+  "hsl(36 100% 50%)",
+  "hsl(280 68% 60%)",
+  "hsl(349 100% 59%)",
+  "hsl(197 100% 58%)",
 ];
 
 type PreparedSeries = {

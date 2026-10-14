@@ -42,11 +42,11 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["'IBM Plex Sans'", "system-ui", "sans-serif"],
-        mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
+        sans: ["-apple-system", "BlinkMacSystemFont", "'SF Pro Text'", "'SF Pro Display'", "'PingFang SC'", "'Hiragino Sans GB'", "'Microsoft YaHei'", "'Helvetica Neue'", "Arial", "sans-serif"],
+        mono: ["ui-monospace", "'SF Mono'", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       boxShadow: {
-        soft: "0 20px 50px rgba(15, 23, 42, 0.12)",
+        soft: "0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)",
       },
     },
   },

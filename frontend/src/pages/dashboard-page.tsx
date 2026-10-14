@@ -25,7 +25,7 @@ const chartGranularityOptions: Array<{ label: string; value: ChartGranularity }>
 const dailyUsageChartConfig = {
   used_quota_usd: {
     label: "额度消耗",
-    color: "hsl(160 84% 30%)",
+    color: "hsl(135 59% 40%)",
   },
 } satisfies ChartConfig;
 

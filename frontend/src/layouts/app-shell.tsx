@@ -45,14 +45,14 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
 
   const sidebarContent = (isMobile = false) => (
     <>
-      <div className="flex h-16 items-center border-b border-white/10 px-6">
+      <div className="flex h-16 items-center border-b px-6">
         <Link to="/" className="flex items-center gap-3" onClick={() => isMobile && setMobileMenuOpen(false)}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_24px_rgba(34,211,238,0.45)]">
-            <img src="/favicon.png" alt="X" className="h-6 w-6 rounded" />
+          <span className="flex h-9 w-9 items-center justify-center">
+            <img src="/favicon.png" alt="X" className="h-9 w-9 rounded-[10px]" />
           </span>
           <div>
-            <div className="text-sm font-semibold tracking-wide text-white">Upstream X</div>
-            <div className="text-xs text-slate-400">上游监控控制台</div>
+            <div className="text-[15px] font-semibold tracking-tight text-foreground">Upstream X</div>
+            <div className="text-xs text-muted-foreground">上游监控控制台</div>
           </div>
         </Link>
       </div>
@@ -67,7 +67,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
                 onClick={() => isMobile && setMobileMenuOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                    isActive ? "bg-cyan-400/10 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]" : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                    isActive ? "bg-secondary font-medium text-foreground" : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
                   }`
                 }
               >
@@ -81,7 +81,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
             onClick={() => isMobile && setMobileMenuOpen(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                isActive ? "bg-cyan-400/10 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]" : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                isActive ? "bg-secondary font-medium text-foreground" : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
               }`
             }
           >
@@ -91,7 +91,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
           {customMenuLinks.length ? (
             <div className="px-3 pb-1 pt-3">
               <div className="border-t" />
-              <div className="pt-3 text-[11px] font-medium tracking-[0.12em] text-slate-500">自定义菜单</div>
+              <div className="pt-3 text-[11px] font-medium tracking-[0.12em] text-muted-foreground">自定义菜单</div>
             </div>
           ) : null}
           {customMenuLinks.map((item) => {
@@ -111,7 +111,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => isMobile && setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-white/5 hover:text-slate-100"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground"
                 >
                   <Link2 className="h-4 w-4" />
                   {item.title}
@@ -126,7 +126,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
                 onClick={() => isMobile && setMobileMenuOpen(false)}
                 className={() =>
                   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                    isActive ? "bg-cyan-400/10 text-cyan-300 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.25)]" : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+                    isActive ? "bg-secondary font-medium text-foreground" : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground"
                   }`
                 }
               >
@@ -143,7 +143,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
   return (
     <div className="min-h-screen md:h-screen md:overflow-hidden">
       <div className="min-h-screen md:grid md:h-full md:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-white/10 bg-[#070D1A] bg-gradient-to-b from-[#0A1322] to-[#05080F] text-slate-200 md:sticky md:top-0 md:block md:h-screen md:overflow-y-auto">
+        <aside className="hidden border-r bg-[#FBFBFD] dark:bg-[#161617] md:sticky md:top-0 md:block md:h-screen md:overflow-y-auto">
           {sidebarContent()}
         </aside>
         <div className="flex min-h-screen flex-col md:h-screen md:min-h-0 md:overflow-hidden">
@@ -204,7 +204,7 @@ export function AppShell({ username, onLogout, children }: AppShellProps) {
       </div>
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent className="border-white/10 bg-[#070D1A] p-0 text-slate-200 md:hidden">
+        <SheetContent className="bg-[#FBFBFD] p-0 dark:bg-[#161617] md:hidden">
           <SheetHeader className="sr-only">
             <SheetTitle>导航菜单</SheetTitle>
             <SheetDescription>切换总览、账号管理、检测任务和系统设置页面。</SheetDescription>

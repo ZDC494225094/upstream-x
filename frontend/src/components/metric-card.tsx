@@ -19,7 +19,7 @@ export function MetricCard({
   tone = "default",
 }: MetricCardProps) {
   return (
-    <Card className="group overflow-hidden transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(2,132,199,0.14)]">
+    <Card className="group overflow-hidden transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,0,0,0.08)]">
       <CardHeader>
         <div>
           <p className="text-[13px] font-medium tracking-wide text-muted-foreground">{title}</p>
@@ -27,10 +27,10 @@ export function MetricCard({
         </div>
         <div
           className={cn(
-            "rounded-xl p-3 ring-1",
-            tone === "warning" && "bg-amber-500/10 text-amber-500 ring-amber-500/25",
-            tone === "danger" && "bg-red-500/10 text-red-500 ring-red-500/25",
-            tone === "default" && "bg-cyan-500/10 text-cyan-500 ring-cyan-500/25",
+            "rounded-2xl p-3",
+            tone === "warning" && "bg-amber-500/10 text-amber-500",
+            tone === "danger" && "bg-red-500/10 text-red-500",
+            tone === "default" && "bg-secondary text-secondary-foreground",
           )}
         >
           <Icon className="h-6 w-6" />

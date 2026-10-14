@@ -15,13 +15,13 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(storageKey);
-    // Dark is the default theme for the console; an explicit stored
+    // Light (Apple style) is the default theme; an explicit stored
     // preference always wins.
-    const nextTheme: Theme = stored === "light" ? "light" : "dark";
+    const nextTheme: Theme = stored === "dark" ? "dark" : "light";
     setTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);

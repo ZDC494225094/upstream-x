@@ -27,18 +27,17 @@ export function LoginPage({ onSuccess }: { onSuccess: (username: string) => void
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#05080F] px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(720px_380px_at_80%_-10%,rgba(34,211,238,0.16),transparent_60%),radial-gradient(640px_420px_at_-10%_110%,rgba(59,130,246,0.14),transparent_60%)]" />
-      <Card className="relative w-full max-w-sm border-white/10 bg-white/[0.04] shadow-[0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-        <CardHeader className="mb-0 flex-col items-center justify-start gap-4 border-b border-white/10 pb-6 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_32px_rgba(34,211,238,0.5)]">
-            <img src="/favicon.png" alt="X" className="h-9 w-9 rounded-lg" />
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <Card className="w-full max-w-sm rounded-[1.75rem] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+        <CardHeader className="mb-0 flex-col items-center justify-start gap-4 pb-2 text-center">
+          <span className="flex h-14 w-14 items-center justify-center">
+            <img src="/favicon.png" alt="X" className="h-14 w-14 rounded-[16px]" />
           </span>
           <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.3em] text-cyan-300/80">
+            <div className="text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
               Upstream X
             </div>
-            <CardTitle className="text-2xl">管理员登录</CardTitle>
+            <CardTitle className="text-[28px] font-semibold tracking-tight">管理员登录</CardTitle>
             <CardDescription>使用后台账号密码进入系统</CardDescription>
           </div>
         </CardHeader>
@@ -64,7 +63,7 @@ export function LoginPage({ onSuccess }: { onSuccess: (username: string) => void
               />
             </div>
             {error && <ErrorAlert title="登录失败" message={error} />}
-            <Button className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 font-semibold text-slate-950 shadow-[0_8px_30px_rgba(34,211,238,0.35)] hover:from-cyan-300 hover:to-blue-400" size="lg" disabled={loading}>
+            <Button className="w-full" size="lg" disabled={loading}>
               {loading ? "登录中..." : "进入后台"}
             </Button>
           </form>
